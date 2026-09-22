@@ -1,0 +1,69 @@
+@startuml
+autonumber
+actor "Maintenance Technician" as MS
+participant "MaintenanceController" as Ctrl
+participant "CreateMaintenanceTemplateUseCase" as UC
+participant "AircraftModelRepository" as ModelRepo
+participant "MaintenanceTemplateRepository" as Repo
+database "Database" as DB
+
+MS -> Ctrl : POST /api/maintenance/templates\n{ name, templateType, applicableModels: [String],\n  checklist: [String], intervalFlightHours,\n  intervalDays }
+activate Ctrl
+
+note right of Ctrl
+  @Valid on CreateMaintenanceTemplateRequest:
+  - name: not blank
+  - templateType: not null (MaintenanceType enum)
+  - applicableModels: not empty, each not blank
+  - checklist: not empty, each not blank
+  - intervalFlightHours: >= 1
+  - intervalDays: >= 1
+end note
+
+Ctrl -> UC : execute(request: CreateMaintenanceTemplateRequest)
+activate UC
+
+loop for each modelName in request.applicableModels()
+  UC -> ModelRepo : findByModelName(modelName)
+  activate ModelRepo
+  ModelRepo -> DB : SELECT FROM aircraft_model WHERE model_name = ?
+  activate DB
+  DB --> ModelRepo : model record
+  deactivate DB
+  ModelRepo --> UC : Optional<AircraftModel>
+  deactivate ModelRepo
+end
+
+alt one or more models not found
+  UC --> Ctrl : throws AircraftModelNotFoundException
+  Ctrl --> MS : 404 Not Found\n{ message: "Aircraft model '...' not found." }
+else all models resolved
+  UC -> Repo : existsByName(request.name())
+  activate Repo
+  Repo -> DB : SELECT COUNT(*) FROM maintenance_template WHERE name = ?
+  activate DB
+  DB --> Repo : count
+  deactivate DB
+  Repo --> UC : boolean
+  deactivate Repo
+
+  alt template name already exists
+    UC --> Ctrl : throws MaintenanceTemplateAlreadyExistsException
+    Ctrl --> MS : 409 Conflict\n{ message: "Maintenance template '...' already exists." }
+  else name is unique
+    UC -> Repo : save(template)
+    activate Repo
+    Repo -> DB : INSERT INTO maintenance_template
+    activate DB
+    DB --> Repo
+    deactivate DB
+    deactivate Repo
+
+    UC --> Ctrl : MaintenanceTemplateResponse\n{ name, description }
+    deactivate UC
+    Ctrl --> MS : 201 Created\nEntityModel<MaintenanceTemplateResponse> with _links
+  end
+end
+
+deactivate Ctrl
+@enduml

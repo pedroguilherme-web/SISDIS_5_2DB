@@ -1,0 +1,259 @@
+package aisafe.aircrafts.infrastructure;
+
+import aisafe.aircrafts.application.*;
+import aisafe.shared.application.dtos.ImageData;
+import aisafe.aircrafts.domain.Manufacturer;
+import aisafe.aircrafts.application.dtos.AircraftModelResponse;
+import aisafe.aircrafts.application.dtos.AircraftModelResponse;
+import aisafe.aircrafts.application.dtos.RegisterAircraftModelRequest;
+import aisafe.aircrafts.application.dtos.UpdateAircraftModelImageRequest;
+import aisafe.aircrafts.application.dtos.UpdateAircraftModelRequest;
+import aisafe.aircrafts.application.dtos.TopUtilizedModelResponse;
+import aisafe.shared.application.dtos.BulkImportResult;
+import aisafe.shared.domain.PaginatedResult;
+import aisafe.shared.infrastructure.BulkImportResponseBuilder;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.PagedResourcesAssembler;
+import org.springframework.hateoas.CollectionModel;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.PagedModel;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.linkTo;
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
+
+@RestController
+@RequestMapping("/api/aircraftModels")
+@Tag(name = "Aircraft Models", description = "Aircraft Model configurations and catalog - WP#1A")
+public class AircraftModelController {
+
+    private final RegisterAircraftModelUseCase registerAircraftModel;
+    private final ListAircraftModelsUseCase listAircraftModels;
+    private final DeleteAircraftModelUseCase deleteAircraftModel;
+    private final UpdateAircraftModelUseCase updateAircraftModel;
+    private final ViewAircraftModelDetailsUseCase viewAircraftModelDetails;
+    private final GetTopUtilizedModelsUseCase getTopUtilizedModels;
+    private final UpdateAircraftModelImageUseCase updateAircraftModelImage;
+    private final GetAircraftModelImageUseCase getAircraftModelImage;
+    private final ImportAircraftModelsUseCase importAircraftModels;
+
+    public AircraftModelController(RegisterAircraftModelUseCase registerAircraftModel,
+                                   ListAircraftModelsUseCase listAircraftModels,
+                                   DeleteAircraftModelUseCase deleteAircraftModel,
+                                   UpdateAircraftModelUseCase updateAircraftModel,
+                                   ViewAircraftModelDetailsUseCase viewAircraftModelDetails,
+                                   GetTopUtilizedModelsUseCase getTopUtilizedModels,
+                                   UpdateAircraftModelImageUseCase updateAircraftModelImage,
+                                   GetAircraftModelImageUseCase getAircraftModelImage,
+                                   ImportAircraftModelsUseCase importAircraftModels) {
+        this.registerAircraftModel = registerAircraftModel;
+        this.listAircraftModels = listAircraftModels;
+        this.deleteAircraftModel = deleteAircraftModel;
+        this.updateAircraftModel = updateAircraftModel;
+        this.viewAircraftModelDetails = viewAircraftModelDetails;
+        this.getTopUtilizedModels = getTopUtilizedModels;
+        this.updateAircraftModelImage = updateAircraftModelImage;
+        this.getAircraftModelImage = getAircraftModelImage;
+        this.importAircraftModels = importAircraftModels;
+    }
+
+    @Operation(summary = "Bulk import aircraft models via CSV")
+    @PostMapping(value = "/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<java.util.Map<String, Object>> importModels(@RequestParam("file") MultipartFile file) {
+        BulkImportResult<AircraftModelResponse> result = importAircraftModels.execute(file);
+        return BulkImportResponseBuilder.buildResponse(result);
+    }
+
+    @Operation(summary = "Register a new aircraft model (JSON, no image)")
+    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<EntityModel<AircraftModelResponse>> createModel(
+            @Valid @RequestBody RegisterAircraftModelRequest request) {
+
+        AircraftModelResponse response = registerAircraftModel.execute(request);
+        EntityModel<AircraftModelResponse> model = EntityModel.of(response);
+
+        model.add(linkTo(methodOn(AircraftModelController.class).getAllAircraftModels(Pageable.unpaged(), null))
+                .withRel("all-models"));
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(model);
+    }
+
+    @Operation(summary = "Register a new aircraft model with optional image (multipart/form-data)")
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EntityModel<AircraftModelResponse>> createModelWithImage(
+            @RequestParam String modelName,
+            @RequestParam Manufacturer manufacturer,
+            @RequestParam Double maxRange,
+            @RequestParam Double fuelCapacity,
+            @RequestParam Double cruisingSpeed,
+            @RequestParam Integer maximumSeatingCapacity,
+            @RequestParam(value = "image", required = false) MultipartFile imageFile) throws IOException {
+
+        if (imageFile != null && (imageFile.getContentType() == null
+                || !imageFile.getContentType().startsWith("image/")))
+            return ResponseEntity.badRequest().build();
+
+        byte[] imageBytes = imageFile != null ? imageFile.getBytes() : null;
+        String contentType = imageFile != null ? imageFile.getContentType() : null;
+
+        RegisterAircraftModelRequest request = new RegisterAircraftModelRequest(
+                modelName, manufacturer, maxRange, fuelCapacity, cruisingSpeed, maximumSeatingCapacity,
+                imageBytes, contentType);
+
+        AircraftModelResponse response = registerAircraftModel.execute(request);
+        EntityModel<AircraftModelResponse> model = EntityModel.of(response);
+        model.add(linkTo(methodOn(AircraftModelController.class).getAllAircraftModels(Pageable.unpaged(), null))
+                .withRel("all-models"));
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(model);
+    }
+
+    @Operation(summary = "Upload or replace the image for an aircraft model")
+    @PatchMapping(value = "/{modelName}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<EntityModel<AircraftModelResponse>> updateImage(
+            @PathVariable String modelName,
+            @RequestParam("image") MultipartFile imageFile) throws IOException {
+
+        if (imageFile.getContentType() == null || !imageFile.getContentType().startsWith("image/"))
+            return ResponseEntity.badRequest().build();
+
+        AircraftModelResponse response = updateAircraftModelImage.execute(
+                new UpdateAircraftModelImageRequest(modelName, imageFile.getBytes(), imageFile.getContentType()));
+
+        EntityModel<AircraftModelResponse> entityModel = EntityModel.of(response);
+        entityModel.add(linkTo(methodOn(AircraftModelController.class).getAircraftModelByName(modelName)).withSelfRel());
+        return ResponseEntity.ok(entityModel);
+    }
+
+    @Operation(summary = "Get the image of an aircraft model as raw bytes")
+    @GetMapping("/{modelName}/image")
+    public ResponseEntity<byte[]> getImage(@PathVariable String modelName) {
+        ImageData data = getAircraftModelImage.execute(modelName);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(data.contentType()))
+                .body(data.bytes());
+    }
+
+    @Operation(summary = "Get all aircraft models with pagination")
+    @GetMapping
+    public ResponseEntity<PagedModel<EntityModel<AircraftModelResponse>>> getAllAircraftModels(
+            @PageableDefault(size = 20) Pageable pageable,
+            PagedResourcesAssembler<AircraftModelResponse> assembler) {
+
+        PaginatedResult<AircraftModelResponse> result = listAircraftModels.execute(
+                pageable.getPageNumber(),
+                pageable.getPageSize()
+        );
+
+        Page<AircraftModelResponse> modelsPage = new PageImpl<>(
+                result.data(),
+                pageable,
+                result.totalElements()
+        );
+
+        PagedModel<EntityModel<AircraftModelResponse>> pagedModel =
+                assembler.toModel(modelsPage, model -> EntityModel.of(model)
+                        .add(linkTo(methodOn(AircraftModelController.class)
+                                .getAircraftModelByName(model.modelName()))
+                                .withSelfRel()));
+
+        return ResponseEntity.ok(pagedModel);
+    }
+
+    @Operation(summary = "Delete an aircraft model", description = "Permanently removes an aircraft model by name. Requires Backoffice Operator or Admin role.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Aircraft model deleted successfully"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions"),
+            @ApiResponse(responseCode = "404", description = "Aircraft model not found")
+    })
+    @DeleteMapping("/{modelName}")
+    public ResponseEntity<Void> deleteModel(
+            @Parameter(description = "Unique Name of the aircraft model") @PathVariable String modelName) {
+
+        deleteAircraftModel.execute(modelName);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Get aircraft model details by name", description = "Returns complete technical details for a specific aircraft model.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Aircraft model details found and returned"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions"),
+            @ApiResponse(responseCode = "404", description = "Aircraft model not found")
+    })
+    @GetMapping("/{modelName}")
+    public ResponseEntity<EntityModel<AircraftModelResponse>> getAircraftModelByName(
+            @Parameter(description = "Unique Name of the aircraft model (e.g. Boeing 737 MAX)")
+            @PathVariable String modelName) {
+
+        AircraftModelResponse response = viewAircraftModelDetails.execute(modelName);
+
+        EntityModel<AircraftModelResponse> entityModel = EntityModel.of(response);
+        entityModel.add(linkTo(methodOn(AircraftModelController.class).getAircraftModelByName(modelName)).withSelfRel());
+        entityModel.add(linkTo(methodOn(AircraftModelController.class).getAllAircraftModels(Pageable.unpaged(), null)).withRel("all-models"));
+
+        return ResponseEntity.ok(entityModel);
+    }
+
+    @Operation(summary = "Update aircraft model details", description = "Updates specific details of an existing aircraft model. Only provided fields will be updated.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Aircraft model updated successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid request data supplied"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions"),
+            @ApiResponse(responseCode = "404", description = "Aircraft model not found")
+    })
+    @PatchMapping("/{modelName}")
+    public ResponseEntity<EntityModel<AircraftModelResponse>> updateAircraftModel(
+            @Parameter(description = "Unique Name of the aircraft model (e.g. Boeing 737 MAX)")
+            @PathVariable String modelName,
+            @Valid @RequestBody UpdateAircraftModelRequest request) {
+
+        AircraftModelResponse response = updateAircraftModel.execute(modelName, request);
+
+        EntityModel<AircraftModelResponse> entityModel = EntityModel.of(response);
+        entityModel.add(linkTo(methodOn(AircraftModelController.class).getAircraftModelByName(modelName)).withSelfRel());
+        entityModel.add(linkTo(methodOn(AircraftModelController.class).getAllAircraftModels(Pageable.unpaged(), null)).withRel("all-models"));
+
+        return ResponseEntity.ok(entityModel);
+    }
+
+    @Operation(summary = "Get top 5 most utilized aircraft models", description = "Returns the top 5 most utilized aircraft models based on total flight hours or number of assignments. (US204)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Top utilized models returned successfully"),
+            @ApiResponse(responseCode = "400", description = "Invalid criteria supplied"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Insufficient permissions")
+    })
+    @GetMapping("/top-utilized")
+    public ResponseEntity<CollectionModel<EntityModel<TopUtilizedModelResponse>>> getTopUtilizedModels(
+            @Parameter(description = "Criteria for utilization ranking: 'HOURS' or 'ASSIGNMENTS'")
+            @RequestParam(required = true) String criteria) {
+
+        List<EntityModel<TopUtilizedModelResponse>> items =
+                getTopUtilizedModels.execute(criteria).stream()
+                        .map(EntityModel::of)
+                        .toList();
+        CollectionModel<EntityModel<TopUtilizedModelResponse>> model =
+                CollectionModel.of(items,
+                        linkTo(methodOn(AircraftModelController.class).getTopUtilizedModels(criteria)).withSelfRel());
+        return ResponseEntity.ok(model);
+    }
+}

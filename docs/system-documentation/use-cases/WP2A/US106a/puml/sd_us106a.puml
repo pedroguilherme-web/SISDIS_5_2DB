@@ -1,0 +1,57 @@
+@startuml
+autonumber
+actor "Backoffice Operator / ATCC" as Actor
+participant "AirportController" as Ctrl
+participant "AddAirportCertificationUseCase" as UC
+participant "AirportRepository" as AirportRepo
+participant "AircraftModelRepository" as ModelRepo
+participant "AircraftCertificationRepository" as CertRepo
+database "Database" as DB
+
+Actor -> Ctrl : POST /api/airports/{iataCode}/certifications\n{ aircraftModelName: String }
+activate Ctrl
+
+Ctrl -> UC : execute(iataCode: String,\n  request: AddCertificationRequest)
+activate UC
+
+UC -> AirportRepo : findByIataCodeCode(iataCode)
+activate AirportRepo
+AirportRepo -> DB : SELECT FROM airport WHERE code = ?
+activate DB
+DB --> AirportRepo : airport record
+deactivate DB
+AirportRepo --> UC : Airport
+deactivate AirportRepo
+
+UC -> ModelRepo : existsByModelName(request.aircraftModelName())
+activate ModelRepo
+ModelRepo -> DB : SELECT FROM aircraft_model WHERE model_name = ?
+activate DB
+DB --> ModelRepo : exists
+deactivate DB
+ModelRepo --> UC : true
+deactivate ModelRepo
+
+UC -> CertRepo : existsByAirportAndAircraftModelName(airport, modelName)
+activate CertRepo
+CertRepo -> DB : SELECT COUNT(*) FROM aircraft_certification WHERE ...
+activate DB
+DB --> CertRepo : 0
+deactivate DB
+CertRepo --> UC : false
+deactivate CertRepo
+
+UC -> CertRepo : save(new AircraftCertification(airport, modelName))
+activate CertRepo
+CertRepo -> DB : INSERT INTO aircraft_certification
+activate DB
+DB --> CertRepo
+deactivate DB
+deactivate CertRepo
+
+UC --> Ctrl : AircraftCertificationResponse\n{ airportIataCode, aircraftModelName }
+deactivate UC
+
+Ctrl --> Actor : 201 Created\nEntityModel<AircraftCertificationResponse> with _links
+deactivate Ctrl
+@enduml

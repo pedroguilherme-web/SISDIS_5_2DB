@@ -1,0 +1,51 @@
+@startuml
+autonumber
+actor "Backoffice Operator" as BO
+participant "AircraftModelController" as Ctrl
+participant "RegisterAircraftModelUseCase" as UC
+participant "AircraftModelRepository" as Repo
+database "Database" as DB
+
+BO -> Ctrl : POST /api/aircraftModels\n{ modelName, manufacturer, maxRange,\n  fuelCapacity, cruisingSpeed,\n  maximumSeatingCapacity }
+activate Ctrl
+
+note right of Ctrl
+  @Valid on RegisterAircraftModelRequest:
+  - modelName: not blank
+  - manufacturer: not null (enum)
+  - maxRange, fuelCapacity, cruisingSpeed: >= 1.0
+  - maximumSeatingCapacity: >= 1
+end note
+
+Ctrl -> UC : execute(request: RegisterAircraftModelRequest)
+activate UC
+
+UC -> Repo : existsByModelName(request.modelName())
+activate Repo
+Repo -> DB : SELECT COUNT(*) FROM aircraft_model WHERE model_name = ?
+activate DB
+DB --> Repo : count
+deactivate DB
+Repo --> UC : boolean
+deactivate Repo
+
+alt model name already exists
+  UC --> Ctrl : throws AircraftModelAlreadyExistsException
+  Ctrl --> BO : 409 Conflict\n{ message: "Aircraft model '...' already exists." }
+else model name is unique
+  UC -> Repo : save(new AircraftModel(...))
+  activate Repo
+  Repo -> DB : INSERT INTO aircraft_model
+  activate DB
+  DB --> Repo : saved record (with generated ID)
+  deactivate DB
+  Repo --> UC : AircraftModel
+  deactivate Repo
+
+  UC --> Ctrl : AircraftModelResponse\n{ modelName, manufacturer,\n  fuelCapacity, maxRange, cruisingSpeed,\n  hasImage, maximumSeatingCapacity }
+  deactivate UC
+  Ctrl --> BO : 201 Created\nEntityModel<AircraftModelResponse> with _links
+end
+
+deactivate Ctrl
+@enduml

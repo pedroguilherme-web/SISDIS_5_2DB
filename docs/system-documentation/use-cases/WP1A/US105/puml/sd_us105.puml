@@ -1,0 +1,82 @@
+@startuml
+autonumber
+actor "ATCC" as BO
+participant "AircraftController" as Ctrl
+participant "UpdateAircraftUseCase" as UC
+participant "AircraftRepository" as Repo
+participant "AircraftModelRepository" as ModelRepo
+participant "Aircraft" as Entity
+database "Database" as DB
+
+BO -> Ctrl : PATCH /api/aircrafts/{registration}\n{ modelName?, manufacturingDate?, seatCapacity?,\n  range?, features?, status? }\nIf-Match: {version}
+activate Ctrl
+
+note right of Ctrl
+  @Valid on UpdateAircraftRequest:
+  - modelName: optional
+  - manufacturingDate: optional
+  - seatCapacity: optional
+  - range: optional
+  - features: optional
+  - status: optional
+  If-Match header: current version for optimistic locking
+end note
+
+Ctrl -> UC : execute(registration: RegistrationNumber,\n  request: UpdateAircraftRequest,\n  version: Long)
+activate UC
+
+UC -> Repo : findByRegistrationNumber(registration)
+activate Repo
+Repo -> DB : SELECT FROM aircraft WHERE registration_number = ?
+activate DB
+DB --> Repo : aircraft record
+deactivate DB
+Repo --> UC : Optional<Aircraft>
+deactivate Repo
+
+alt aircraft not found
+  UC --> Ctrl : throws AircraftNotFoundException
+  Ctrl --> BO : 404 Not Found\n{ message: "Aircraft '...' not found." }
+else aircraft found
+  UC -> Repo : findVersionFor(registration)
+  activate Repo
+  Repo --> UC : Long (current version)
+  deactivate Repo
+
+  alt version mismatch
+    UC --> Ctrl : throws ConcurrencyException
+    Ctrl --> BO : 412 Precondition Failed\n{ message: "The aircraft has been updated by another user." }
+  else version matches
+    opt modelName provided
+      UC -> ModelRepo : findByModelName(request.modelName())
+      activate ModelRepo
+      ModelRepo -> DB : SELECT FROM aircraft_model WHERE model_name = ?
+      activate DB
+      DB --> ModelRepo : model record
+      deactivate DB
+      ModelRepo --> UC : Optional<AircraftModel>
+      deactivate ModelRepo
+    end
+
+    UC -> Entity : updateDetails(model, manufacturingDate,\n  seatCapacity, range, features, status)
+    activate Entity
+    Entity --> UC
+    deactivate Entity
+
+    UC -> Repo : save(aircraft)
+    activate Repo
+    Repo -> DB : UPDATE aircraft SET ... WHERE id = ? AND version = ?
+    activate DB
+    DB --> Repo : updated record (version incremented)
+    deactivate DB
+    Repo --> UC : Aircraft
+    deactivate Repo
+
+    UC --> Ctrl : ViewAircraftDetailsResponse\n{ registrationNumber, model, manufacturer,\n  manufacturingDate, status, seatCapacity,\n  features, version }
+    deactivate UC
+    Ctrl --> BO : 200 OK\nEntityModel<ViewAircraftDetailsResponse> with _links
+  end
+end
+
+deactivate Ctrl
+@enduml

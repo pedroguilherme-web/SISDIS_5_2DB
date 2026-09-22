@@ -1,0 +1,73 @@
+@startuml
+autonumber
+actor "ATCC" as Actor
+participant "RouteController" as Ctrl
+participant "SearchRoutesUseCase" as UC
+participant "RouteRepository" as Repo
+database "Database" as DB
+
+Actor -> Ctrl : GET /api/routes/search\n?origin=OPO&destination=LIS&page=0&size=20
+activate Ctrl
+
+note right of Ctrl
+  Query params (all optional):
+  - origin: String (IATA code)
+  - destination: String (IATA code)
+  - page, size, sort (Pageable)
+  Default page size: 20
+end note
+
+Ctrl -> UC : execute(origin: String, destination: String,\n  pageable: Pageable)
+activate UC
+
+alt origin and destination provided
+  UC -> Repo : findByOriginAndDestination(origin, destination, pageable)
+  activate Repo
+  Repo -> DB : SELECT FROM route\nWHERE origin_iata_code = ? AND destination_iata_code = ?\n(LIMIT ? OFFSET ?)
+  activate DB
+  DB --> Repo : route records + total count
+  deactivate DB
+  Repo --> UC : Page<Route>
+  deactivate Repo
+else only origin provided
+  UC -> Repo : findByOrigin(origin, pageable)
+  activate Repo
+  Repo -> DB : SELECT FROM route WHERE origin_iata_code = ?\n(LIMIT ? OFFSET ?)
+  activate DB
+  DB --> Repo : route records + total count
+  deactivate DB
+  Repo --> UC : Page<Route>
+  deactivate Repo
+else only destination provided
+  UC -> Repo : findByDestination(destination, pageable)
+  activate Repo
+  Repo -> DB : SELECT FROM route WHERE destination_iata_code = ?\n(LIMIT ? OFFSET ?)
+  activate DB
+  DB --> Repo : route records + total count
+  deactivate DB
+  Repo --> UC : Page<Route>
+  deactivate Repo
+else no filters provided
+  UC -> Repo : findAll(pageable)
+  activate Repo
+  Repo -> DB : SELECT FROM route (LIMIT ? OFFSET ?)
+  activate DB
+  DB --> Repo : route records + total count
+  deactivate DB
+  Repo --> UC : Page<Route>
+  deactivate Repo
+end
+
+UC --> Ctrl : page.map(RouteResponse::from)\n→ Page<RouteResponse>
+deactivate UC
+
+note right of Ctrl
+  PagedResourcesAssembler wraps
+  Page<RouteResponse> into
+  PagedModel<EntityModel<RouteResponse>>
+  adding _links and page metadata
+end note
+
+Ctrl --> Actor : 200 OK (HAL+JSON)\n{\n  "_embedded": { "routeResponseList": [...] },\n  "_links": { "self", "next", "prev" },\n  "page": { number, size,\n    totalElements, totalPages }\n}
+deactivate Ctrl
+@enduml

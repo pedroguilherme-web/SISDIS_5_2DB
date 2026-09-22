@@ -1,0 +1,44 @@
+@startuml
+autonumber
+actor "ATCC" as Actor
+participant "RouteController" as Ctrl
+participant "ViewRouteHistoryUseCase" as UC
+participant "RouteRepository" as RouteRepo
+participant "RouteHistoryRepository" as HistoryRepo
+database "Database" as DB
+
+Actor -> Ctrl : GET /api/routes/{origin}/{destination}/history
+activate Ctrl
+
+Ctrl -> UC : execute(origin: String, destination: String)
+activate UC
+
+UC -> RouteRepo : existsByOriginAndDestination(origin, destination)
+activate RouteRepo
+RouteRepo -> DB : SELECT EXISTS(FROM route WHERE origin_code = ? AND destination_code = ?)
+activate DB
+DB --> RouteRepo : boolean
+deactivate DB
+RouteRepo --> UC : boolean
+deactivate RouteRepo
+
+alt route not found
+  UC --> Ctrl : throws RouteNotFoundException
+  Ctrl --> Actor : 404 Not Found\n{ message: "Route '...→...' not found." }
+else route found
+  UC -> HistoryRepo : findAllByRoute(origin, destination)
+  activate HistoryRepo
+  HistoryRepo -> DB : SELECT FROM route_history WHERE origin_code = ? AND destination_code = ?
+  activate DB
+  DB --> HistoryRepo : history records
+  deactivate DB
+  HistoryRepo --> UC : List<RouteHistory>
+  deactivate HistoryRepo
+
+  UC --> Ctrl : List<RouteHistoryResponse>\n[{ originCode, destinationCode,\n   changeDescription, changedAt, changedBy }]
+  deactivate UC
+  Ctrl --> Actor : 200 OK\nCollectionModel<EntityModel<RouteHistoryResponse>>\nwith _links (self, route)
+end
+
+deactivate Ctrl
+@enduml

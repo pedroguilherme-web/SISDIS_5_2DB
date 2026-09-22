@@ -1,0 +1,90 @@
+@startuml
+autonumber
+actor "Maintenance Technician" as MT
+participant "MaintenanceController" as Ctrl
+participant "CreateMaintenanceRecordUseCase" as UC
+participant "MaintenancePartRepository" as PartRepo
+participant "MaintenanceTemplateRepository" as TemplateRepo
+participant "AircraftRepository" as AircraftRepo
+participant "MaintenanceRecordRepository" as Repo
+database "Database" as DB
+
+MT -> Ctrl : POST /api/maintenance/records\n{ description, startDate, expectedDuration,\n  parts (list of partNumbers), notes?, template (name),\n  status, registrationNumber }
+activate Ctrl
+
+note right of Ctrl
+  @Valid on CreateMaintenanceRecordRequest:
+  - description: not blank
+  - startDate: not null
+  - expectedDuration: >= 1
+  - parts: not empty (list of part numbers)
+  - template: not blank (template name)
+  - status: not null (MaintenanceStatus enum)
+  - registrationNumber: not blank
+end note
+
+Ctrl -> UC : execute(request: CreateMaintenanceRecordRequest)
+activate UC
+
+loop for each partNumber in request.parts()
+  UC -> PartRepo : findByPartNumber(partNumber)
+  activate PartRepo
+  PartRepo -> DB : SELECT FROM maintenance_part WHERE part_number = ?
+  activate DB
+  DB --> PartRepo : part record
+  deactivate DB
+  PartRepo --> UC : Optional<MaintenancePart>
+  deactivate PartRepo
+end
+
+UC -> TemplateRepo : findByName(request.template())
+activate TemplateRepo
+TemplateRepo -> DB : SELECT FROM maintenance_template WHERE name = ?
+activate DB
+DB --> TemplateRepo : template record
+deactivate DB
+TemplateRepo --> UC : Optional<MaintenanceTemplate>
+deactivate TemplateRepo
+
+UC -> AircraftRepo : findByRegistrationNumber(request.registrationNumber())
+activate AircraftRepo
+AircraftRepo -> DB : SELECT FROM aircraft WHERE registration_number = ?
+activate DB
+DB --> AircraftRepo : aircraft record
+deactivate DB
+AircraftRepo --> UC : Optional<Aircraft>
+deactivate AircraftRepo
+
+alt part, template, or aircraft not found
+  UC --> Ctrl : throws MaintenancePartNotFoundException\n/ MaintenanceTemplateNotFoundException\n/ AircraftNotFoundException
+  Ctrl --> MT : 404 Not Found\n{ message: "... not found." }
+else all references found
+  UC -> Repo : existsByStartDateAndTemplate(startDate, template)
+  activate Repo
+  Repo -> DB : SELECT COUNT(*) FROM maintenance_record WHERE ...
+  activate DB
+  DB --> Repo : count
+  deactivate DB
+  Repo --> UC : boolean
+  deactivate Repo
+
+  alt duplicate record exists
+    UC --> Ctrl : throws MaintenanceRecordAlreadyExistsException
+    Ctrl --> MT : 409 Conflict\n{ message: "Maintenance record already exists." }
+  else record is unique
+    UC -> Repo : save(record)
+    activate Repo
+    Repo -> DB : INSERT INTO maintenance_record\n+ INSERT INTO maintenance_record_parts
+    activate DB
+    DB --> Repo
+    deactivate DB
+    deactivate Repo
+
+    UC --> Ctrl : MaintenanceRecordResponse\n{ recordId (UUID), description, startDate,\n  expectedDuration, notes, partNumbers,\n  templateName, status,\n  aircraftRegistration, version }
+    deactivate UC
+    Ctrl --> MT : 201 Created\nEntityModel<MaintenanceRecordResponse> with _links
+  end
+end
+
+deactivate Ctrl
+@enduml

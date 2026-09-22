@@ -1,0 +1,67 @@
+@startuml
+autonumber
+actor "ATCC" as BO
+participant "AircraftController" as Ctrl
+participant "RegisterAircraftUseCase" as UC
+participant "AircraftModelRepository" as ModelRepo
+participant "AircraftRepository" as Repo
+database "Database" as DB
+
+BO -> Ctrl : POST /api/aircrafts\n{ registrationNumber, modelName,\n  manufacturingDate, seatCapacity,\n  status, features? }
+activate Ctrl
+
+note right of Ctrl
+  @Valid on RegisterAircraftRequest:
+  - registrationNumber: pattern ^[A-Z]{2}-[A-Z]{3}$
+  - modelName: not null
+  - manufacturingDate: not null
+  - seatCapacity: >= 1
+  - status: not blank
+end note
+
+Ctrl -> UC : execute(request: RegisterAircraftRequest)
+activate UC
+
+UC -> ModelRepo : findByModelName(request.modelName())
+activate ModelRepo
+ModelRepo -> DB : SELECT FROM aircraft_model WHERE model_name = ?
+activate DB
+DB --> ModelRepo : model record
+deactivate DB
+ModelRepo --> UC : Optional<AircraftModel>
+deactivate ModelRepo
+
+alt model not found
+  UC --> Ctrl : throws AircraftModelNotFoundException
+  Ctrl --> BO : 404 Not Found\n{ message: "Aircraft model not found." }
+else model found
+  UC -> Repo : existsByRegistrationNumber(request.registrationNumber())
+  activate Repo
+  Repo -> DB : SELECT COUNT(*) FROM aircraft WHERE registration_number = ?
+  activate DB
+  DB --> Repo : count
+  deactivate DB
+  Repo --> UC : boolean
+  deactivate Repo
+
+  alt registration already exists
+    UC --> Ctrl : throws AircraftAlreadyExistsException
+    Ctrl --> BO : 409 Conflict\n{ message: "Aircraft '...' already exists." }
+  else registration is unique
+    UC -> Repo : save(new Aircraft(model, registrationNumber,\n  manufacturingDate, seatCapacity, status, features))
+    activate Repo
+    Repo -> DB : INSERT INTO aircraft
+    activate DB
+    DB --> Repo : saved record (with generated ID)
+    deactivate DB
+    Repo --> UC : Aircraft
+    deactivate Repo
+
+    UC --> Ctrl : ViewAircraftDetailsResponse\n{ registrationNumber, model, manufacturer,\n  manufacturingDate, status, seatCapacity,\n  features, version }
+    deactivate UC
+    Ctrl --> BO : 201 Created\nEntityModel<ViewAircraftDetailsResponse> with _links
+  end
+end
+
+deactivate Ctrl
+@enduml

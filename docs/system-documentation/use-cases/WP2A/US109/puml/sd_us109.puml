@@ -1,0 +1,48 @@
+@startuml
+autonumber
+actor "Backoffice Operator" as BO
+participant "AirportController" as Ctrl
+participant "UpdateAirportStatusUseCase" as UC
+participant "Airport" as Entity
+participant "AirportRepository" as Repo
+database "Database" as DB
+
+BO -> Ctrl : PATCH /api/airports/{iataCode}/status\nIf-Match: <version>\n{ status: "OPERATIONAL" | "CLOSED" | "UNDER_MAINTENANCE" }
+activate Ctrl
+
+note right of Ctrl
+  @Valid on UpdateAirportStatusRequest:
+  - status: not null, must be valid enum value
+end note
+
+Ctrl -> UC : execute(iataCode: String,\n  request.status(): AirportStatus,\n  version: Long)
+activate UC
+
+UC -> Repo : findByIataCodeCode(iataCode)
+activate Repo
+Repo -> DB : SELECT FROM airport WHERE code = ?
+activate DB
+DB --> Repo : airport record
+deactivate DB
+Repo --> UC : Airport
+deactivate Repo
+
+UC -> Entity : setStatus(status)
+activate Entity
+Entity --> UC
+deactivate Entity
+
+UC -> Repo : save(airport)
+activate Repo
+Repo -> DB : UPDATE airport SET status = ? WHERE code = ?
+activate DB
+DB --> Repo
+deactivate DB
+deactivate Repo
+
+UC --> Ctrl : AirportResponse.from(airport)\n{ iataCode, name, status, ... }
+deactivate UC
+
+Ctrl --> BO : 200 OK\nEntityModel<AirportResponse> with _links
+deactivate Ctrl
+@enduml

@@ -1,0 +1,65 @@
+@startuml
+autonumber
+actor "Maintenance Technician" as MT
+participant "MaintenanceController" as Ctrl
+participant "UpdateMaintenanceRecordUseCase" as UC
+participant "MaintenanceRecordRepository" as Repo
+participant "MaintenanceRecord" as Entity
+database "Database" as DB
+
+MT -> Ctrl : PATCH /api/maintenance/records/{recordId}\n{ status: MaintenanceStatus, notes? }\nIf-Match: {version}
+activate Ctrl
+
+note right of Ctrl
+  @Valid on UpdateMaintenanceRecordsRequest:
+  - status: not null (MaintenanceStatus enum)
+  - notes: optional
+  If-Match header: current version for optimistic locking
+end note
+
+Ctrl -> UC : execute(recordId: UUID,\n  request: UpdateMaintenanceRecordsRequest,\n  version: Long)
+activate UC
+
+UC -> Repo : findByRecordId(recordId)
+activate Repo
+Repo -> DB : SELECT FROM maintenance_record WHERE record_id = ?
+activate DB
+DB --> Repo : record data
+deactivate DB
+Repo --> UC : Optional<MaintenanceRecord>
+deactivate Repo
+
+alt record not found
+  UC --> Ctrl : throws MaintenanceRecordNotFoundException
+  Ctrl --> MT : 404 Not Found\n{ message: "Maintenance record not found." }
+else version mismatch
+  UC --> Ctrl : throws ConcurrencyException
+  Ctrl --> MT : 412 Precondition Failed\n{ message: "Concurrent update conflict -- please retry" }
+else update allowed
+  UC -> Entity : setStatus(request.status())
+  activate Entity
+  Entity --> UC
+  deactivate Entity
+
+  opt notes provided and not blank
+    UC -> Entity : setNotes(request.notes())
+    activate Entity
+    Entity --> UC
+    deactivate Entity
+  end
+
+  UC -> Repo : save(record)
+  activate Repo
+  Repo -> DB : UPDATE maintenance_record\nSET status = ?, notes = ?\nWHERE record_id = ? AND version = ?
+  activate DB
+  DB --> Repo
+  deactivate DB
+  deactivate Repo
+
+  UC --> Ctrl : MaintenanceRecordResponse\n{ recordId (UUID), description, startDate,\n  expectedDuration, notes, partNumbers,\n  templateName, status,\n  aircraftRegistration, version }
+  deactivate UC
+  Ctrl --> MT : 200 OK\nEntityModel<MaintenanceRecordResponse> with _links
+end
+
+deactivate Ctrl
+@enduml

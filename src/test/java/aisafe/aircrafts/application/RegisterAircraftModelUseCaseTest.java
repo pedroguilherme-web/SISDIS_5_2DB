@@ -1,0 +1,64 @@
+package aisafe.aircrafts.application;
+
+import aisafe.aircrafts.application.dtos.AircraftModelResponse;
+import aisafe.aircrafts.application.dtos.RegisterAircraftModelRequest;
+import aisafe.aircrafts.domain.*;
+import aisafe.shared.domain.DuplicateResourceException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class RegisterAircraftModelUseCaseTest {
+
+    @Mock
+    private AircraftModelRepository repository;
+
+    @InjectMocks
+    private RegisterAircraftModelUseCase registerAircraftModel;
+
+    private RegisterAircraftModelRequest buildRequest() {
+        return new RegisterAircraftModelRequest("A320", Manufacturer.AIRBUS, 6150.0, 26730.0, 833.0, 180, null, null);
+    }
+
+    @Test
+    void ensureModelIsRegisteredSuccessfully() {
+        when(repository.existsByModelName("A320")).thenReturn(false);
+
+        AircraftModelResponse response = registerAircraftModel.execute(buildRequest());
+
+        assertNotNull(response);
+        assertEquals("A320", response.modelName());
+        assertEquals(Manufacturer.AIRBUS, response.manufacturer());
+        verify(repository, times(1)).save(any(AircraftModel.class));
+    }
+
+    @Test
+    void ensureExceptionWhenModelNameAlreadyExists() {
+        when(repository.existsByModelName("A320")).thenReturn(true);
+
+        assertThrows(DuplicateResourceException.class, () ->
+                registerAircraftModel.execute(buildRequest()));
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    void ensureModelIsRegisteredWithImage() {
+        RegisterAircraftModelRequest requestWithImage = new RegisterAircraftModelRequest(
+                "A320", Manufacturer.AIRBUS, 6150.0, 26730.0, 833.0, 180, new byte[]{1, 2, 3}, "image/png"
+        );
+        when(repository.existsByModelName("A320")).thenReturn(false);
+
+        AircraftModelResponse response = registerAircraftModel.execute(requestWithImage);
+
+        assertNotNull(response);
+        assertEquals("A320", response.modelName());
+        verify(repository, times(1)).save(any(AircraftModel.class));
+    }
+}

@@ -1,0 +1,46 @@
+@startuml
+autonumber
+actor "ATCC" as ATCC
+participant "AircraftController" as Ctrl
+participant "SearchAircraftUseCase" as UC
+participant "AircraftRepository" as Repo
+database "Database" as DB
+
+ATCC -> Ctrl : GET /api/aircrafts/search\n?modelName=X&status=Y&year=Z&feature=W&page=0&size=20
+activate Ctrl
+
+note right of Ctrl
+  Query params (all optional):
+  - modelName: String
+  - status: AircraftStatus enum
+  - year: Integer (manufacturing year)
+  - feature: String (e.g. WiFi)
+  - page, size (Pageable)
+  Default page size: 20
+end note
+
+Ctrl -> UC : execute(modelName: String, status: String,\n  year: Integer, feature: String, pageNumber, pageSize)
+activate UC
+
+UC -> Repo : searchAircrafts(modelName, status, year, feature, pageNumber, pageSize)
+activate Repo
+Repo -> DB : SELECT FROM aircraft\nWHERE model_name = ? AND status = ? AND year = ? AND feature IN features\n(dynamic query, LIMIT ? OFFSET ?)
+activate DB
+DB --> Repo : PaginatedResult<Aircraft>
+deactivate DB
+Repo --> UC : PaginatedResult<Aircraft>
+deactivate Repo
+
+UC --> Ctrl : PaginatedResult<SearchAircraftUseCaseResponse>\n{ registrationNumber, model, status, seatCapacity }
+deactivate UC
+
+note right of Ctrl
+  PagedResourcesAssembler wraps
+  PaginatedResult into
+  PagedModel<EntityModel<SearchAircraftUseCaseResponse>>
+  adding _links and page metadata
+end note
+
+ATCC <-- Ctrl : 200 OK (HAL+JSON)\n{\n  "_embedded": { "searchAircraftUseCaseResponseList": [...] },\n  "_links": { "self", "next", "prev" },\n  "page": { number, size,\n    totalElements, totalPages }\n}
+deactivate Ctrl
+@enduml

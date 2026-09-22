@@ -1,0 +1,78 @@
+@startuml
+autonumber
+actor "ATCC" as Actor
+participant "RouteController" as Ctrl
+participant "CreateRouteUseCase" as UC
+participant "AirportRepository" as AirRepo
+participant "RouteRepository" as RouteRepo
+database "Database" as DB
+
+Actor -> Ctrl : POST /api/routes\n{ originIataCode, destinationIataCode,\n  estimatedFlightTime, minimumRange,\n  minimumCapacity, createdBy }
+activate Ctrl
+
+note right of Ctrl
+  CreateRouteRequest:
+  - originIataCode: not blank
+  - destinationIataCode: not blank
+  - estimatedFlightTime: > 0
+  - minimumRange: > 0.0
+  - minimumCapacity: > 0
+  - createdBy: not blank
+  - origin != destination (domain rule)
+end note
+
+Ctrl -> UC : execute(request: CreateRouteRequest)
+activate UC
+
+UC -> AirRepo : existsByIataCodeCode(request.originIataCode())
+activate AirRepo
+AirRepo -> DB : SELECT EXISTS(FROM airport WHERE code = ?)
+activate DB
+DB --> AirRepo : boolean
+deactivate DB
+AirRepo --> UC : boolean
+deactivate AirRepo
+
+UC -> AirRepo : existsByIataCodeCode(request.destinationIataCode())
+activate AirRepo
+AirRepo -> DB : SELECT EXISTS(FROM airport WHERE code = ?)
+activate DB
+DB --> AirRepo : boolean
+deactivate DB
+AirRepo --> UC : boolean
+deactivate AirRepo
+
+alt origin or destination airport not found
+  UC --> Ctrl : throws AirportNotFoundException
+  Ctrl --> Actor : 404 Not Found\n{ message: "Airport with IATA code '...' not found." }
+else both airports exist
+  UC -> RouteRepo : existsByOriginAndDestination(originIataCode, destinationIataCode)
+  activate RouteRepo
+  RouteRepo -> DB : SELECT EXISTS(FROM route WHERE origin = ? AND destination = ?)
+  activate DB
+  DB --> RouteRepo : boolean
+  deactivate DB
+  RouteRepo --> UC : boolean
+  deactivate RouteRepo
+
+  alt route already exists
+    UC --> Ctrl : throws DuplicateResourceException
+    Ctrl --> Actor : 409 Conflict\n{ message: "A route between these airports already exists." }
+  else route does not exist
+    UC -> RouteRepo : save(new Route(originIataCode, destinationIataCode,\n  estimatedFlightTime, minimumRange, minimumCapacity, createdBy))
+    activate RouteRepo
+    RouteRepo -> DB : INSERT INTO route
+    activate DB
+    DB --> RouteRepo : saved record (with generated ID)
+    deactivate DB
+    RouteRepo --> UC : Route
+    deactivate RouteRepo
+
+    UC --> Ctrl : RouteResponse\n{ originIataCode, destinationIataCode,\n  estimatedFlightTime, minimumRange,\n  minimumCapacity, status: ACTIVE }
+    deactivate UC
+    Ctrl --> Actor : 201 Created\nEntityModel<RouteResponse> with _links
+  end
+end
+
+deactivate Ctrl
+@enduml
