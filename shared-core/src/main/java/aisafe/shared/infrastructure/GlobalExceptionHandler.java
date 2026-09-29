@@ -1,17 +1,5 @@
 package aisafe.shared.infrastructure;
 
-import aisafe.aircrafts.domain.AircraftModelImageNotFoundException;
-import aisafe.aircrafts.domain.AircraftModelNotFoundException;
-import aisafe.aircrafts.domain.AircraftNotFoundException;
-import aisafe.aircrafts.domain.InvalidRegistrationNumberException;
-import aisafe.airports.domain.AirportNotFoundException;
-import aisafe.airports.domain.AirportPhotoNotFoundException;
-import aisafe.maintenance.domain.MaintenancePartNotFoundException;
-import aisafe.maintenance.domain.MaintenanceRecordNotFoundException;
-import aisafe.maintenance.domain.MaintenanceTemplateNotFoundException;
-import aisafe.routes.domain.RouteNotFoundException;
-import aisafe.airports.domain.InvalidContactException;
-import aisafe.airports.domain.InvalidIataCodeException;
 import aisafe.security.domain.InvalidCredentialsException;
 import aisafe.shared.domain.ConcurrencyException;
 import aisafe.shared.domain.DomainException;
@@ -35,47 +23,22 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Centralised exception handler that translates domain and infrastructure exceptions into
+ * Centralised exception handler that translates shared domain and infrastructure exceptions into
  * meaningful HTTP responses.
- *
- * <p>Annotated with {@link RestControllerAdvice}, which applies to every
- * {@code @RestController} in the application.</p>
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-    /** 401 Unauthorized -- authentication failed. */
+
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new ErrorResponse(ex.getMessage()));
     }
 
-    /** 404 Not Found */
-    @ExceptionHandler({
-            AircraftNotFoundException.class,
-            AircraftModelNotFoundException.class,
-            AircraftModelImageNotFoundException.class,
-            AirportNotFoundException.class,
-            AirportPhotoNotFoundException.class,
-            RouteNotFoundException.class,
-            MaintenanceRecordNotFoundException.class,
-            MaintenancePartNotFoundException.class,
-            MaintenanceTemplateNotFoundException.class
-    })
-    public ResponseEntity<ErrorResponse> handleNotFound(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(new ErrorResponse(ex.getMessage()));
-    }
-
-    /** 400 Bad Request - Invalid args.*/
-    // can be added more later
     @ExceptionHandler({
             DomainException.class,
             IllegalArgumentException.class,
-            InvalidIataCodeException.class,
-            InvalidContactException.class,
-            InvalidRegistrationNumberException.class,
             MissingServletRequestParameterException.class
     })
     public ResponseEntity<ErrorResponse> handleBadRequest(Exception ex) {
@@ -83,7 +46,6 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse(ex.getMessage()));
     }
 
-    /** 409 Conflict - duplicated information or resource in use */
     @ExceptionHandler({DataIntegrityViolationException.class, DuplicateResourceException.class, ResourceInUseException.class})
     public ResponseEntity<ErrorResponse> handleConflict(RuntimeException ex) {
         String msg = (ex instanceof DuplicateResourceException || ex instanceof ResourceInUseException)
@@ -92,35 +54,30 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(msg));
     }
 
-    /** 403 Forbidden - Token is valid, but user doesnt have needed role */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleForbidden(AccessDeniedException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new ErrorResponse("You do not have permission to access this resource."));
     }
 
-    /** 409 Conflict - optimistic locking collision (concurrent update detected) */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ErrorResponse> handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(new ErrorResponse("The resource was modified by another request. Please retry."));
     }
 
-    /** 412 Precondition Failed - optimistic locking collision (If-Match mismatch) */
     @ExceptionHandler(ConcurrencyException.class)
     public ResponseEntity<ErrorResponse> handlePreconditionFailed(ConcurrencyException ex) {
         return ResponseEntity.status(HttpStatus.PRECONDITION_FAILED)
                 .body(new ErrorResponse(ex.getMessage()));
     }
 
-    /** 400 Bad Request - query/path parameter cannot be converted to its target type (e.g. invalid enum value) */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         String message = "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName() + "'.";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(new ErrorResponse(message));
     }
 
-    /** 400 Bad Request - bean validation failure (@Valid on request bodies) */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ValidationErrorResponse> handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
@@ -129,7 +86,6 @@ public class GlobalExceptionHandler {
                 .body(new ValidationErrorResponse("Validation failed", errors));
     }
 
-    /** 500 Internal Server Error - Catch all for unexpected error */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleAllOtherExceptions(Exception ex) {
         log.error("Unhandled exception", ex);
@@ -137,10 +93,6 @@ public class GlobalExceptionHandler {
                 .body(new ErrorResponse("An unexpected internal server error occurred: " + ex.getMessage()));
     }
 
-    /** Error response body. */
-    record ErrorResponse(String message) {}
-
-    /** Error response body for validation failures -- includes per-field details. */
-    record ValidationErrorResponse(String message, Map<String, String> errors) {}
-
+    public record ErrorResponse(String message) {}
+    public record ValidationErrorResponse(String message, Map<String, String> errors) {}
 }
