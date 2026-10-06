@@ -1,10 +1,8 @@
 package aisafe.airports.application;
 
-import aisafe.aircrafts.domain.ModelName;
+import aisafe.airports.domain.ModelName;
 import aisafe.shared.domain.DuplicateResourceException;
 import aisafe.shared.application.UseCase;
-import aisafe.aircrafts.domain.AircraftModelRepository;
-import aisafe.aircrafts.domain.AircraftModelNotFoundException;
 import aisafe.airports.application.dtos.AddCertificationRequest;
 import aisafe.airports.application.dtos.AircraftCertificationResponse;
 import aisafe.airports.domain.Airport;
@@ -18,14 +16,14 @@ import aisafe.airports.domain.IataCode;
 public class AddAirportCertificationUseCase {
     private final AirportRepository airportRepository;
     private final AircraftCertificationRepository certificationRepository;
-    private final AircraftModelRepository aircraftModelRepository;
+    private final AircraftsServiceClient aircraftsServiceClient;
 
     public AddAirportCertificationUseCase(AirportRepository airportRepository,
                                           AircraftCertificationRepository certificationRepository,
-                                          AircraftModelRepository aircraftModelRepository) {
+                                          AircraftsServiceClient aircraftsServiceClient) {
         this.airportRepository = airportRepository;
         this.certificationRepository = certificationRepository;
-        this.aircraftModelRepository = aircraftModelRepository;
+        this.aircraftsServiceClient = aircraftsServiceClient;
     }
 
     public AircraftCertificationResponse execute(String iataCodeStr, AddCertificationRequest request) {
@@ -34,8 +32,8 @@ public class AddAirportCertificationUseCase {
 
         ModelName modelName = new ModelName(request.aircraftModelName());
 
-        if (!aircraftModelRepository.existsByModelName(modelName.getName())) {
-            throw new AircraftModelNotFoundException("Aircraft model with name '" + modelName.getName() + "' not found.");
+        if (!aircraftsServiceClient.existsByModelName(modelName)) {
+            throw new IllegalArgumentException("Aircraft model with name '" + modelName.getName() + "' not found in Aircrafts Service.");
         }
 
         if (certificationRepository.existsByAirportCodeAndAircraftModelName(airport.getIataCode(), modelName)) {

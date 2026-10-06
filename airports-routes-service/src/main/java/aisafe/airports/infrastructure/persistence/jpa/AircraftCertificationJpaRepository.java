@@ -1,6 +1,6 @@
 package aisafe.airports.infrastructure.persistence.jpa;
 
-import aisafe.aircrafts.domain.ModelName;
+import aisafe.airports.domain.ModelName;
 import aisafe.airports.domain.AircraftCertification;
 import aisafe.airports.domain.AircraftCertificationRepository;
 import aisafe.airports.domain.AirportNotFoundException;

@@ -1,6 +1,6 @@
 package aisafe.airports.domain;
 
-import aisafe.aircrafts.domain.ModelName;
+import aisafe.airports.domain.ModelName;
 
 public class AircraftCertification {
 

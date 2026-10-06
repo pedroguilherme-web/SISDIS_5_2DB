@@ -4,8 +4,7 @@ import aisafe.routes.application.dtos.ActiveRouteResponse;
 import aisafe.routes.domain.InvalidSortParameterException;
 import aisafe.routes.domain.Route;
 import aisafe.routes.domain.RouteRepository;
-import aisafe.flights.domain.ScheduledFlightRepository;
-import aisafe.shared.application.RouteDistanceService;
+import aisafe.routes.application.RouteDistanceService;
 import aisafe.shared.application.UseCase;
 import aisafe.shared.domain.InvalidListingCriteriaException;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +17,7 @@ import java.util.List;
 public class ListActiveRoutesUseCase {
 
     private final RouteRepository routeRepository;
-    private final ScheduledFlightRepository scheduledFlightRepository;
+    private final FlightsServiceClient flightsServiceClient;
     private final RouteDistanceService routeDistanceService;
 
     public List<ActiveRouteResponse> execute(String status, String sortBy) {
@@ -49,7 +48,7 @@ public class ListActiveRoutesUseCase {
                 route.getMinimumCapacity(),
                 route.getStatus(),
                 routeDistanceService.calculateDistanceKm(route),
-                scheduledFlightRepository.countByRoute(route.getOrigin(), route.getDestination())
+                flightsServiceClient.countFlightsByRoute(route.getOrigin(), route.getDestination())
         );
     }
 }

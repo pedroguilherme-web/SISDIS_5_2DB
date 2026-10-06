@@ -1,0 +1,26 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Diagrama de Contentores (Nível 2) - AISafe Flight Management System
+
+Person(client, "Cliente / Utilizador", "Interage com o sistema de gestão de voos")
+
+System_Boundary(aisafe_system, "AISafe Flight Management System") {
+
+    Container(aircraft_service, "Aircraft & Maintenance Service", "Spring Boot, REST", "Gere modelos e instâncias de aeronaves, estado operacional e registos de manutenção. Múltiplas instâncias (ex: port 8081/8082).")
+
+    Container(airports_service, "Airports & Routes Service", "Spring Boot, REST", "Regista e consulta aeroportos, dados de certificação de pistas e histórico de rotas. Múltiplas instâncias (ex: port 8091/8092).")
+
+    Container(flight_ops_service, "Flight Operations Service", "Spring Boot, REST", "Agenda voos, atribui aeronaves a rotas e verifica a disponibilidade em tempo real. Múltiplas instâncias (ex: port 8071/8072).")
+}
+
+Rel(client, aircraft_service, "Faz pedidos HTTP GET/POST", "HTTP/REST")
+Rel(client, airports_service, "Faz pedidos HTTP GET/POST", "HTTP/REST")
+Rel(client, flight_ops_service, "Faz pedidos HTTP GET/POST", "HTTP/REST")
+
+Rel(flight_ops_service, aircraft_service, "Consulta disponibilidade de aeronaves", "HTTP/REST")
+Rel(flight_ops_service, airports_service, "Consulta rotas e portos", "HTTP/REST")
+Rel(aircraft_service, flight_ops_service, "Comunica atualizações de estado", "HTTP/REST")
+
+SHOW_LEGEND()
+@enduml
