@@ -12,7 +12,7 @@
 	<artifactId>aircraft-maintenance-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>Aircraft Maintenance Service</name>
-	<description>Autonomous microservice for aircraft fleet and maintenance management in AISafe</description>
+	<description>Autonomous component for aircraft fleet and maintenance management in AISafe</description>
 
 	<properties>
 		<java.version>21</java.version>

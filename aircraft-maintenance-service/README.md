@@ -1,4 +1,4 @@
-# Aircraft & Maintenance Service (Autonomous Microservice)
+# Aircraft & Maintenance Service (Autonomous component)
 
 **Assignment 1 – Sistemas Distribuídos (LETI-SIDIS / PSOFT)**  
 **Student:** Martim Alves (1240690)  
@@ -8,7 +8,7 @@
 
 ## 1. Overview & Domain Boundaries
 
-This microservice manages:
+This component manages:
 * **Aircraft Models:** Specifications (range, fuel, speed, passenger capacity) and catalog images.
 * **Aircraft Fleet Instances:** Registration numbers, manufacturing dates, operational statuses (`AVAILABLE`, `UNDER_MAINTENANCE`, `INACTIVE`).
 * **Maintenance Management:** Maintenance templates (intervals in flight hours and days, task checklists), parts inventory, work orders, turnaround metrics, and maintenance due alerts.
