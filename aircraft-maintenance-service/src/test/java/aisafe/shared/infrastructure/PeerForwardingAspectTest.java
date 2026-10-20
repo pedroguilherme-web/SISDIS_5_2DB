@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.*;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -95,5 +96,36 @@ class PeerForwardingAspectTest {
         )).thenThrow(new ResourceAccessException("Connection refused"));
 
         assertThrows(AircraftNotFoundException.class, () -> aspect.handleGetForwarding(joinPoint));
+    }
+
+    @Test
+    void whenMultiplePeersAndFirstMissesSecondHits_shouldReturnSecondPeerResponse() throws Throwable {
+        PeerForwardingAspect multiPeerAspect = new PeerForwardingAspect("http://localhost:8082,http://localhost:8083", restTemplate);
+        when(joinPoint.proceed()).thenThrow(new AircraftNotFoundException("Not found locally"));
+
+        // Peer 1 (8082) returns 404
+        when(restTemplate.exchange(
+                eq("http://localhost:8082/api/aircrafts/CS-TRP"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenThrow(HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not found on peer 8082", HttpHeaders.EMPTY, new byte[0], null));
+
+        // Peer 2 (8083) returns 200 OK
+        String peer3Json = "{\"registrationNumber\":\"CS-TRP\",\"status\":\"AVAILABLE\",\"origin\":\"instance3\"}";
+        when(restTemplate.exchange(
+                eq("http://localhost:8083/api/aircrafts/CS-TRP"),
+                eq(HttpMethod.GET),
+                any(HttpEntity.class),
+                eq(String.class)
+        )).thenReturn(ResponseEntity.ok(peer3Json));
+
+        Object result = multiPeerAspect.handleGetForwarding(joinPoint);
+
+        assertNotNull(result);
+        assertTrue(result instanceof ResponseEntity<?>);
+        ResponseEntity<?> responseEntity = (ResponseEntity<?>) result;
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(peer3Json, responseEntity.getBody());
     }
 }
