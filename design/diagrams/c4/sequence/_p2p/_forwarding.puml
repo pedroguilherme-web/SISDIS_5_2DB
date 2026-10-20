@@ -1,0 +1,169 @@
+@startuml _forwarding
+autonumber
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam ResponseMessageBelowArrow true
+
+title Peer-to-Peer HTTP GET Forwarding with Failure Handling (C4+1 Scenario)
+
+actor "Client / Operator" as Client
+
+box "Aircraft & Maintenance Service - Instance 1 (:8081)" #EBF5FB
+    participant "AircraftController\n(Instance 1)" as Ctrl1
+    participant "PeerForwardingAspect\n(AOP Interceptor)" as Aspect1
+    participant "ViewAircraftDetailsUseCase\n(Instance 1)" as UC1
+    participant "AircraftJpaRepository\n(Instance 1)" as Repo1
+    database "H2 Database\n(Instance 1)" as DB1
+end box
+
+box "Aircraft & Maintenance Service - Instance 2 (:8082)" #EAFAF1
+    participant "AircraftController\n(Instance 2)" as Ctrl2
+    participant "PeerForwardingAspect\n(Instance 2)" as Aspect2
+    participant "ViewAircraftDetailsUseCase\n(Instance 2)" as UC2
+    participant "AircraftJpaRepository\n(Instance 2)" as Repo2
+    database "H2 Database\n(Instance 2)" as DB2
+end box
+
+== 1. Client Request Arrival at Instance 1 ==
+
+Client -> Ctrl1 : HTTP GET /api/aircrafts/CS-TRP\n[Headers: Authorization: Bearer <token>]
+activate Ctrl1
+
+Ctrl1 -> Aspect1 : @Around invocation
+activate Aspect1
+
+Aspect1 -> UC1 : execute("CS-TRP")
+activate UC1
+
+UC1 -> Repo1 : findByRegistrationNumber("CS-TRP")
+activate Repo1
+
+Repo1 -> DB1 : SELECT * FROM aircrafts WHERE registration_number = 'CS-TRP'
+activate DB1
+DB1 --> Repo1 : [Empty result set]
+deactivate DB1
+
+Repo1 --> UC1 : Optional.empty()
+deactivate Repo1
+
+UC1 --> Aspect1 : throws AircraftNotFoundException("CS-TRP")
+deactivate UC1
+
+== 2. Local Cache Miss & Peer Forwarding Evaluation ==
+
+note over Aspect1
+  **Catch NotFoundException:**
+  1. Inspect incoming HTTP header:
+     Is 'X-Peer-Forwarded' == true?
+     -> NO (Initial client request, proceed to forward)
+  2. Retrieve configured peer URLs:
+     peer.urls = http://localhost:8082
+  3. Prepare outgoing HTTP GET request:
+     - URL: http://localhost:8082/api/aircrafts/CS-TRP
+     - Add Header: 'X-Peer-Forwarded: true' (prevents circular loops)
+     - Propagate Header: 'Authorization: Bearer <token>'
+end note
+
+alt #LightGreen Scenario A: Data Found on Peer (Success Flow)
+
+    Aspect1 -> Ctrl2 : HTTP GET /api/aircrafts/CS-TRP\n[Headers: Authorization: Bearer, X-Peer-Forwarded: true]
+    activate Ctrl2
+
+    Ctrl2 -> Aspect2 : @Around invocation
+    activate Aspect2
+
+    Aspect2 -> UC2 : execute("CS-TRP")
+    activate UC2
+
+    UC2 -> Repo2 : findByRegistrationNumber("CS-TRP")
+    activate Repo2
+
+    Repo2 -> DB2 : SELECT * FROM aircrafts WHERE registration_number = 'CS-TRP'
+    activate DB2
+    DB2 --> Repo2 : Record found: { "registrationNumber": "CS-TRP", "status": "AVAILABLE", ... }
+    deactivate DB2
+
+    Repo2 --> UC2 : Aircraft entity
+    deactivate Repo2
+
+    UC2 --> Aspect2 : AircraftDetailsDTO
+    deactivate UC2
+
+    Aspect2 --> Ctrl2 : AircraftDetailsDTO
+    deactivate Aspect2
+
+    Ctrl2 --> Aspect1 : 200 OK\n{ "registrationNumber": "CS-TRP", "status": "AVAILABLE", "model": "A320" }
+    deactivate Ctrl2
+
+    Aspect1 --> Ctrl1 : ResponseEntity.ok(peerPayload)
+    deactivate Aspect1
+    Ctrl1 --> Client : 200 OK\n{ "registrationNumber": "CS-TRP", "status": "AVAILABLE", "model": "A320" }
+    deactivate Ctrl1
+
+else #LightPink Scenario B: Data Not Found on Any Peer (Global 404 Flow)
+
+    Aspect1 -> Ctrl2 : HTTP GET /api/aircrafts/CS-TRP\n[Headers: X-Peer-Forwarded: true]
+    activate Ctrl2
+
+    Ctrl2 -> Aspect2 : @Around invocation
+    activate Aspect2
+
+    Aspect2 -> UC2 : execute("CS-TRP")
+    activate UC2
+
+    UC2 -> Repo2 : findByRegistrationNumber("CS-TRP")
+    activate Repo2
+    Repo2 -> DB2 : SELECT * FROM aircrafts ...
+    activate DB2
+    DB2 --> Repo2 : [Empty result set]
+    deactivate DB2
+    Repo2 --> UC2 : Optional.empty()
+    deactivate Repo2
+
+    UC2 --> Aspect2 : throws AircraftNotFoundException("CS-TRP")
+    deactivate UC2
+
+    note over Aspect2
+      'X-Peer-Forwarded' is true!
+      Do NOT forward again (break cycle).
+      Rethrow exception to Controller.
+    end note
+
+    Aspect2 --> Ctrl2 : rethrow AircraftNotFoundException
+    deactivate Aspect2
+
+    Ctrl2 --> Aspect1 : 404 Not Found\n{ "message": "Aircraft not found: CS-TRP" }
+    deactivate Ctrl2
+
+    note over Aspect1
+      Peer returned 404. All peers exhausted.
+      Rethrow original AircraftNotFoundException.
+    end note
+
+    Aspect1 --> Ctrl1 : rethrow AircraftNotFoundException
+    deactivate Aspect1
+
+    Ctrl1 --> Client : 404 Not Found\n{ "status": 404, "message": "Aircraft not found: CS-TRP" }
+    deactivate Ctrl1
+
+else #MistyRose Scenario C: Peer Unreachable / Network Timeout (Fault Tolerance Flow)
+
+    Aspect1 -> Ctrl2 : HTTP GET /api/aircrafts/CS-TRP [Timeout: 3000ms]
+    ... Peer node down or network partition ...
+    Ctrl2 --X Aspect1 : Connection Refused / SocketTimeoutException
+
+    note over Aspect1
+      Catch ResourceAccessException / RestClientException:
+      Log warning: "Peer http://localhost:8082 unreachable"
+      Do not crash. Rethrow original AircraftNotFoundException.
+    end note
+
+    Aspect1 --> Ctrl1 : rethrow AircraftNotFoundException
+    deactivate Aspect1
+
+    Ctrl1 --> Client : 404 Not Found\n{ "status": 404, "message": "Aircraft not found: CS-TRP" }
+    deactivate Ctrl1
+
+end
+
+@enduml
