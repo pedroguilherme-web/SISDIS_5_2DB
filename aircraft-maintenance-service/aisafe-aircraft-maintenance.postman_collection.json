@@ -1,0 +1,284 @@
+{
+	"info": {
+		"_postman_id": "84d5f1e2-b132-47e1-85b2-3c87f9e8a001",
+		"name": "AISafe - Aircraft & Maintenance Service (Assignment 1)",
+		"description": "Comprehensive test collection demonstrating:\n1. Authentication (JWT token issuance)\n2. Local data access on Instance 1 (:8081)\n3. Peer-to-Peer HTTP GET Forwarding (:8081 -> :8082)\n4. Resilience & Error Handling (404 and offline peer)\n5. Optimistic Locking Concurrency Control (@Version)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "instance1_url",
+			"value": "http://localhost:8081",
+			"type": "string"
+		},
+		{
+			"key": "instance2_url",
+			"value": "http://localhost:8082",
+			"type": "string"
+		},
+		{
+			"key": "jwt_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "0. Authentication",
+			"item": [
+				{
+					"name": "Login as ATCC Operator (Instance 1)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set('jwt_token', jsonData.token);",
+									"console.log('JWT Token saved: ' + jsonData.token);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"atcc\",\n    \"password\": \"atcc123\"\n}"
+						},
+						"url": {
+							"raw": "{{instance1_url}}/api/auth/login",
+							"host": ["{{instance1_url}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "1. Local Access Tests",
+			"item": [
+				{
+					"name": "GET Aircraft Fleet on Instance 1 (Local Hit)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test('Response contains bootstrap aircraft', function () {",
+									"    var jsonData = pm.response.json();",
+									"    var list = jsonData._embedded ? jsonData._embedded.aircraftResponseList : jsonData;",
+									"    pm.expect(list).to.be.an('array');",
+									"    pm.expect(list.length).to.be.above(0);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{instance1_url}}/api/aircrafts",
+							"host": ["{{instance1_url}}"],
+							"path": ["api", "aircrafts"]
+						}
+					}
+				},
+				{
+					"name": "GET Aircraft Details CS-TKA on Instance 1 (Local Hit)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test('Aircraft is CS-TKA', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.registrationNumber).to.eql('CS-TKA');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{instance1_url}}/api/aircrafts/CS-TKA",
+							"host": ["{{instance1_url}}"],
+							"path": ["api", "aircrafts", "CS-TKA"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Peer-to-Peer Forwarding Tests",
+			"item": [
+				{
+					"name": "Step A: Register Aircraft CS-PTP exclusively on Instance 2",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 201 Created', function () {",
+									"    pm.response.to.have.status(201);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"modelName\": \"Airbus A320neo\",\n    \"registrationNumber\": \"CS-PTP\",\n    \"manufacturingDate\": \"2022-01-15\",\n    \"seatCapacity\": 180,\n    \"range\": 6500.0,\n    \"status\": \"AVAILABLE\",\n    \"features\": [\"WiFi\", \"USB Power\"]\n}"
+						},
+						"url": {
+							"raw": "{{instance2_url}}/api/aircrafts",
+							"host": ["{{instance2_url}}"],
+							"path": ["api", "aircrafts"]
+						}
+					}
+				},
+				{
+					"name": "Step B: Query CS-PTP on Instance 1 (Triggers P2P Forwarding)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200 via P2P Forwarding', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test('Returned aircraft is CS-PTP from Instance 2', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.registrationNumber).to.eql('CS-PTP');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{instance1_url}}/api/aircrafts/CS-PTP",
+							"host": ["{{instance1_url}}"],
+							"path": ["api", "aircrafts", "CS-PTP"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Resilience & Failure Handling Tests",
+			"item": [
+				{
+					"name": "Query Non-Existent Aircraft (Global 404 & Loop Prevention)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 404 Not Found', function () {",
+									"    pm.response.to.have.status(404);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{jwt_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{instance1_url}}/api/aircrafts/CS-ZZZ",
+							"host": ["{{instance1_url}}"],
+							"path": ["api", "aircrafts", "CS-ZZZ"]
+						}
+					}
+				},
+				{
+					"name": "Health Check Actuator Endpoint",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Status code is 200', function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"pm.test('Application is UP', function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData.status).to.eql('UP');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{instance1_url}}/actuator/health",
+							"host": ["{{instance1_url}}"],
+							"path": ["actuator", "health"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

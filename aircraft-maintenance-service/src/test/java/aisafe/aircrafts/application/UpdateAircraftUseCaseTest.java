@@ -1,0 +1,134 @@
+package aisafe.aircrafts.application;
+
+import aisafe.aircrafts.application.dtos.UpdateAircraftRequest;
+import aisafe.aircrafts.application.dtos.AircraftResponse;
+import aisafe.aircrafts.domain.*;
+import aisafe.shared.domain.ConcurrencyException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class UpdateAircraftUseCaseTest {
+
+    @Mock
+    private AircraftRepository aircraftRepository;
+
+    @Mock
+    private AircraftModelRepository aircraftModelRepository;
+
+    @InjectMocks
+    private UpdateAircraftUseCase updateAircraftUseCase;
+
+    private RegistrationNumber registrationNumber;
+    private Aircraft aircraft;
+    private AircraftModel model;
+
+    @BeforeEach
+    void setUp() {
+        registrationNumber = new RegistrationNumber("CS-TPA");
+        model = new AircraftModel("A320", Manufacturer.AIRBUS, 26730.0, 6150.0, 833.0, null, 180);
+        aircraft = new Aircraft(AircraftStatus.AVAILABLE, LocalDate.of(2020, 1, 1), model, registrationNumber, 150, 5000.0, List.of());
+    }
+
+    @Test
+    void ensureAircraftIsUpdatedSuccessfully() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest("A320", LocalDate.of(2021, 1, 1), 160, 5500.0, List.of("WiFi"), "INACTIVE");
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.of(aircraft));
+        when(aircraftModelRepository.findByModelName("A320")).thenReturn(Optional.of(model));
+        when(aircraftRepository.findVersionFor(registrationNumber)).thenReturn(0L).thenReturn(1L);
+
+        AircraftResponse response = updateAircraftUseCase.execute(registrationNumber, request, 0L);
+
+        assertNotNull(response);
+        assertEquals(AircraftStatus.INACTIVE, response.status());
+        assertEquals(160, response.seatCapacity());
+        verify(aircraftRepository, times(1)).save(aircraft);
+    }
+
+    @Test
+    void ensureExceptionWhenAircraftNotFound() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest("A320", null, null, null, null, null);
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.empty());
+
+        assertThrows(AircraftNotFoundException.class, () -> updateAircraftUseCase.execute(registrationNumber, request, 0L));
+    }
+
+    @Test
+    void ensureExceptionWhenModelNotFound() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest("NON_EXISTENT", null, null, null, null, null);
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.of(aircraft));
+        when(aircraftRepository.findVersionFor(registrationNumber)).thenReturn(0L);
+        when(aircraftModelRepository.findByModelName("NON_EXISTENT")).thenReturn(Optional.empty());
+
+        assertThrows(AircraftModelNotFoundException.class, () -> updateAircraftUseCase.execute(registrationNumber, request, 0L));
+    }
+
+    @Test
+    void ensureExceptionOnConcurrencyMismatch() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest("A320", null, null, null, null, null);
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.of(aircraft));
+        when(aircraftRepository.findVersionFor(registrationNumber)).thenReturn(1L); // Database has version 1
+
+        assertThrows(ConcurrencyException.class, () ->
+                updateAircraftUseCase.execute(registrationNumber, request, 0L)); // Client provides version 0
+    }
+
+    @Test
+    void ensureExceptionWhenInvalidStatus() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest(null, null, null, null, null, "INVALID_STATUS");
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.of(aircraft));
+        when(aircraftRepository.findVersionFor(registrationNumber)).thenReturn(0L);
+
+        assertThrows(AircraftInvalidFieldException.class, () ->
+                updateAircraftUseCase.execute(registrationNumber, request, 0L));
+    }
+
+    @Test
+    void ensureBlankModelNameKeepsOriginalModel() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest("   ", null, null, null, null, null);
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.of(aircraft));
+        when(aircraftRepository.findVersionFor(registrationNumber)).thenReturn(0L).thenReturn(1L);
+
+        AircraftResponse response = updateAircraftUseCase.execute(registrationNumber, request, 0L);
+
+        assertNotNull(response);
+        verify(aircraftModelRepository, never()).findByModelName(any());
+    }
+
+    @Test
+    void ensureBlankStatusKeepsOriginalStatus() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest(null, null, null, null, null, "   ");
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.of(aircraft));
+        when(aircraftRepository.findVersionFor(registrationNumber)).thenReturn(0L).thenReturn(1L);
+
+        AircraftResponse response = updateAircraftUseCase.execute(registrationNumber, request, 0L);
+
+        assertNotNull(response);
+        assertEquals(AircraftStatus.AVAILABLE, response.status());
+    }
+
+    @Test
+    void ensureUpdateSucceedsWhenCurrentVersionIsNull() {
+        UpdateAircraftRequest request = new UpdateAircraftRequest(null, null, null, null, null, null);
+        when(aircraftRepository.findByRegistrationNumber(registrationNumber)).thenReturn(Optional.of(aircraft));
+        // Return null for findVersionFor (e.g. not yet versioned or first save in some environments)
+        when(aircraftRepository.findVersionFor(registrationNumber)).thenReturn(null);
+
+        AircraftResponse response = updateAircraftUseCase.execute(registrationNumber, request, 0L);
+
+        assertNotNull(response);
+        verify(aircraftRepository, times(1)).save(aircraft);
+    }
+}
