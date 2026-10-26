@@ -159,4 +159,67 @@ class DistributedSearchServiceTest {
         }
     }
 
+    @Test
+    void shouldNotProcessDuplicateSearchRequest() {
+
+        PeerRegistry registry = new PeerRegistry();
+        PeerClient client = new PeerClient();
+
+        DistributedSearchService service =
+                new DistributedSearchService(registry, client);
+
+        DistributedSearchRequest request =
+                DistributedSearchRequest.create(
+                        "/api/airports", 2
+                );
+
+        String firstResult = service.processSearch(request);
+        String secondResult = service.processSearch(request);
+
+        assertEquals("[]", firstResult);
+        assertEquals("[]", secondResult);
+    }
+
+    @Test
+    void shouldReturnEmptyForRepeatedRequestWithPeers()
+            throws Exception {
+
+        HttpServer server = createServer(
+                "[{\"code\":\"OPO\"}]"
+        );
+
+        server.start();
+
+        try {
+            PeerRegistry registry = new PeerRegistry();
+
+            registry.registerPeer(new PeerNode(
+                    "airports-1",
+                    URI.create("http://127.0.0.1:"
+                            + server.getAddress().getPort())
+            ));
+
+            DistributedSearchService service =
+                    new DistributedSearchService(
+                            registry, new PeerClient()
+                    );
+
+            DistributedSearchRequest request =
+                    DistributedSearchRequest.create(
+                            "/api/airports", 2
+                    );
+
+            String first = service.processSearch(request);
+            String second = service.processSearch(request);
+
+            assertTrue(first.contains("OPO"));
+            assertEquals("[]", second);
+
+        } finally {
+            server.stop(0);
+        }
+    }
+
+
+
 }

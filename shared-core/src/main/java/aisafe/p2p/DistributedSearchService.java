@@ -9,6 +9,7 @@ public class DistributedSearchService {
 
     private final PeerRegistry registry;
     private final PeerClient client;
+    private final SearchRequestTracker tracker;
 
     public DistributedSearchService(
             PeerRegistry registry,
@@ -16,6 +17,7 @@ public class DistributedSearchService {
 
         this.registry = Objects.requireNonNull(registry);
         this.client = Objects.requireNonNull(client);
+        this.tracker = new SearchRequestTracker();
     }
 
     public List<String> searchAllPeers(String path) {
@@ -48,5 +50,17 @@ public class DistributedSearchService {
 
         return aggregator.aggregate(responses);
     }
+
+    public String processSearch(DistributedSearchRequest request) {
+
+        Objects.requireNonNull(request, "Request cannot be null");
+
+        if (!tracker.markIfNew(request.getRequestId())) {
+            return "[]";
+        }
+
+        return searchAndAggregate(request.getPath());
+    }
+
 
 }
