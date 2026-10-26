@@ -3,6 +3,7 @@ package aisafe.p2p;
 
 import org.junit.jupiter.api.Test;
 import java.net.URI;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PeerRegistryTest {
@@ -25,10 +26,7 @@ class PeerRegistryTest {
         registry.registerPeer(peer2);
 
         assertEquals(2, registry.getPeerCount());
-        assertEquals(
-                peer1,
-                registry.getPeer("airports-1")
-        );
+        assertEquals(peer1, registry.getPeer("airports-1"));
     }
 
     @Test
