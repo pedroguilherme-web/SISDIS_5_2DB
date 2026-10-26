@@ -1,0 +1,42 @@
+
+package aisafe.p2p;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+
+public class DistributedSearchService {
+
+    private final PeerRegistry registry;
+    private final PeerClient client;
+
+    public DistributedSearchService(
+            PeerRegistry registry,
+            PeerClient client) {
+
+        this.registry = Objects.requireNonNull(registry);
+        this.client = Objects.requireNonNull(client);
+    }
+
+    public List<String> searchAllPeers(String path) {
+
+        List<String> results = new ArrayList<>();
+
+        for (PeerNode peer : registry.getAllPeers()) {
+            try {
+                String response = client.searchPeer(peer, path);
+
+                if (response != null) {
+                    results.add(response);
+                }
+
+            } catch (Exception exception) {
+                System.err.println(
+                        "Peer unavailable: " + peer.getId()
+                );
+            }
+        }
+
+        return results;
+    }
+}
