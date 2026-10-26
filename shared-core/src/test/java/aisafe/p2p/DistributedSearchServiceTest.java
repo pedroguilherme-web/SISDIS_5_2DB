@@ -97,4 +97,66 @@ class DistributedSearchServiceTest {
 
         return server;
     }
+
+    @Test
+    void shouldSearchAndAggregatePeerResponses()
+            throws Exception {
+
+        HttpServer server1 = createServer(
+                "[{\"code\":\"OPO\"},{\"code\":\"LIS\"}]"
+        );
+
+        HttpServer server2 = createServer(
+                "[{\"code\":\"LIS\"},{\"code\":\"FAO\"}]"
+        );
+
+        server1.start();
+        server2.start();
+
+        try {
+            PeerRegistry registry = new PeerRegistry();
+
+            registry.registerPeer(new PeerNode(
+                    "airports-1",
+                    URI.create("http://127.0.0.1:"
+                            + server1.getAddress().getPort())
+            ));
+
+            registry.registerPeer(new PeerNode(
+                    "airports-2",
+                    URI.create("http://127.0.0.1:"
+                            + server2.getAddress().getPort())
+            ));
+
+            DistributedSearchService service =
+                    new DistributedSearchService(
+                            registry, new PeerClient()
+                    );
+
+            String result =
+                    service.searchAndAggregate("/api/airports");
+
+            var json = new com.fasterxml.jackson.databind
+                    .ObjectMapper().readTree(result);
+
+            assertEquals(3, json.size());
+
+            java.util.Set<String> codes =
+                    new java.util.HashSet<>();
+
+            for (var airport : json) {
+                codes.add(airport.get("code").asText());
+            }
+
+            assertEquals(
+                    java.util.Set.of("OPO", "LIS", "FAO"),
+                    codes
+            );
+
+        } finally {
+            server1.stop(0);
+            server2.stop(0);
+        }
+    }
+
 }

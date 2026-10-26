@@ -39,4 +39,14 @@ public class DistributedSearchService {
 
         return results;
     }
+
+    public String searchAndAggregate(String path) {
+        List<String> responses = searchAllPeers(path);
+
+        JsonResponseAggregator aggregator =
+                new JsonResponseAggregator();
+
+        return aggregator.aggregate(responses);
+    }
+
 }
