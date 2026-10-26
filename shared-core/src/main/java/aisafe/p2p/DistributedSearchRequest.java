@@ -3,6 +3,8 @@ package aisafe.p2p;
 
 import java.util.Objects;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class DistributedSearchRequest {
 
@@ -10,8 +12,13 @@ public class DistributedSearchRequest {
     private final String path;
     private final int ttl;
 
+
+    @JsonCreator
     public DistributedSearchRequest(
-            String requestId, String path, int ttl) {
+            @JsonProperty("requestId") String requestId,
+            @JsonProperty("path") String path,
+            @JsonProperty("ttl") int ttl) {
+
 
         this.requestId = Objects.requireNonNull(
                 requestId, "Request ID is required"

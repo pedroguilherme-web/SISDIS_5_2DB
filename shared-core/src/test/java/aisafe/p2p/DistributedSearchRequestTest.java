@@ -62,4 +62,31 @@ class DistributedSearchRequestTest {
                 request::nextHop
         );
     }
+
+    @Test
+    void shouldDeserializeSearchRequestFromJson()
+            throws Exception {
+
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+                new com.fasterxml.jackson.databind.ObjectMapper();
+
+        String json = """
+            {
+                "requestId": "search-123",
+                "path": "/api/airports",
+                "ttl": 2
+            }
+            """;
+
+        DistributedSearchRequest request =
+                mapper.readValue(
+                        json,
+                        DistributedSearchRequest.class
+                );
+
+        assertEquals("search-123", request.getRequestId());
+        assertEquals("/api/airports", request.getPath());
+        assertEquals(2, request.getTtl());
+    }
+
 }
