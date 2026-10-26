@@ -428,13 +428,20 @@
           ],
           "request": {
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "method": "POST",
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"username\": \"admin2\",\r\n    \"password\": \"admin123\",\r\n    \"role\": \"ADMIN\"\r\n}",
+              "raw": "{\r\n    \"username\": \"{{new_username}}\",\r\n    \"password\": \"{{new_password}}\",\r\n    \"role\": \"{{new_role}}\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -482,7 +489,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"username\": \"admin\",\r\n    \"password\": \"admin123\"\r\n}",
+              "raw": "{\r\n    \"username\": \"{{bootstrap_admin_username}}\",\r\n    \"password\": \"{{bootstrap_admin_password}}\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -530,7 +537,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"username\": \"operator\",\r\n    \"password\": \"operator123\"\r\n}",
+              "raw": "{\r\n    \"username\": \"{{backoffice_username}}\",\r\n    \"password\": \"{{backoffice_password}}\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -578,7 +585,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"username\": \"atcc\",\r\n    \"password\": \"atcc123\"\r\n}",
+              "raw": "{\r\n    \"username\": \"{{atcc_username}}\",\r\n    \"password\": \"{{atcc_password}}\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -626,7 +633,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"username\": \"technician\",\r\n    \"password\": \"technician123\"\r\n}",
+              "raw": "{\r\n    \"username\": \"{{technician_username}}\",\r\n    \"password\": \"{{technician_password}}\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -674,7 +681,7 @@
             "header": [],
             "body": {
               "mode": "raw",
-              "raw": "{\r\n    \"username\": \"supervisor\",\r\n    \"password\": \"supervisor123\"\r\n}",
+              "raw": "{\r\n    \"username\": \"{{supervisor_username}}\",\r\n    \"password\": \"{{supervisor_password}}\"\r\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -3579,6 +3586,58 @@
     },
     {
       "key": "jwt_token",
+      "value": ""
+    },
+    {
+      "key": "bootstrap_admin_username",
+      "value": ""
+    },
+    {
+      "key": "bootstrap_admin_password",
+      "value": ""
+    },
+    {
+      "key": "new_username",
+      "value": ""
+    },
+    {
+      "key": "new_password",
+      "value": ""
+    },
+    {
+      "key": "new_role",
+      "value": "BACKOFFICE_OPERATOR"
+    },
+    {
+      "key": "backoffice_username",
+      "value": ""
+    },
+    {
+      "key": "backoffice_password",
+      "value": ""
+    },
+    {
+      "key": "atcc_username",
+      "value": ""
+    },
+    {
+      "key": "atcc_password",
+      "value": ""
+    },
+    {
+      "key": "technician_username",
+      "value": ""
+    },
+    {
+      "key": "technician_password",
+      "value": ""
+    },
+    {
+      "key": "supervisor_username",
+      "value": ""
+    },
+    {
+      "key": "supervisor_password",
       "value": ""
     },
     {
