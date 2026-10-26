@@ -259,7 +259,7 @@ public class RouteController {
         return ResponseEntity.ok(assembler.toModel(routePage, this::toModel));
     }
 
-    @Operation(summary = "Delete a route", description = "Permanently removes a flight route. Requires Admin role.")
+    @Operation(summary = "Delete a route", description = "Permanently removes a flight route. Requires ATCC role.")
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "Route deleted successfully"),
             @ApiResponse(responseCode = "401", description = "Authentication required"),

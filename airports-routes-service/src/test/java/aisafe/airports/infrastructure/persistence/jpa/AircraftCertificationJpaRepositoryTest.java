@@ -1,6 +1,5 @@
 package aisafe.airports.infrastructure.persistence.jpa;
 
-import aisafe.aircrafts.domain.ModelName;
 import aisafe.airports.domain.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

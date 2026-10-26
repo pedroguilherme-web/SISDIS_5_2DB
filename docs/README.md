@@ -74,6 +74,59 @@ Para garantir a tolerância a falhas e a descentralização do armazenamento, a 
 3. **Prevenção de Loops e Erros**: O mecanismo de *forwarding* evita encaminhamentos circulares (excluindo a própria instância da lista de destinos) e trata graciosamente *timeouts* e erros de rede.
 4. **Segurança em Camadas**: Proteção dos dados operacionais sensíveis através de autenticação entre serviços, encriptação de dados em trânsito (TLS 1.3), controlo de acessos e registos de auditoria (*audit logging*).
 
+### HTTPS no Airports & Routes Service
+
+HTTPS é ativado apenas quando o serviço arranca com o perfil `tls`. O certificado e as
+passwords ficam fora do código. Para criar um certificado local de demonstração:
+
+```bash
+keytool -genkeypair -alias aisafe -keyalg RSA -storetype PKCS12 \
+  -keystore "$HOME/airports-routes.p12" -dname "CN=localhost" \
+  -ext "SAN=dns:localhost,ip:127.0.0.1"
+export TLS_KEYSTORE="$HOME/airports-routes.p12"
+export TLS_KEYSTORE_PASSWORD='<password-introduzida-no-keytool>'
+export JWT_SECRET="$(openssl rand -base64 32)"
+export BOOTSTRAP_ADMIN_USERNAME='admin'
+export BOOTSTRAP_ADMIN_PASSWORD='<password-forte-e-unica>'
+export TLS_TRUSTSTORE="$HOME/aisafe-truststore.p12"
+export TLS_TRUSTSTORE_PASSWORD='<password-do-truststore>'
+./mvnw -pl airports-routes-service -am package -DskipTests
+java -Djavax.net.ssl.trustStore="$TLS_TRUSTSTORE" \
+  -Djavax.net.ssl.trustStorePassword="$TLS_TRUSTSTORE_PASSWORD" \
+  -jar airports-routes-service/target/airports-routes-service-0.0.1-SNAPSHOT.jar \
+  --spring.profiles.active=tls
+```
+
+O serviço escuta na porta `8443`. Para comunicar por HTTPS com os outros serviços, definir
+`AIRCRAFTS_SERVICE_URL` e `FLIGHTS_SERVICE_URL` como URLs `https://` e confiar nos
+certificados deles num truststore Java (configurado com `-Djavax.net.ssl.trustStore` e
+`-Djavax.net.ssl.trustStorePassword`). `TLS_KEYSTORE` deve apontar para um keystore PKCS#12
+com alias `aisafe`; `JWT_SECRET` deve ser Base64, conter pelo menos 32 bytes e ser igual nos
+serviços que validam os tokens. O perfil `tls` restringe o servidor a TLS 1.3.
+
+Na primeira execução, o serviço cria apenas a conta `ADMIN` indicada por
+`BOOTSTRAP_ADMIN_USERNAME` e `BOOTSTRAP_ADMIN_PASSWORD`; esses valores não são usados para
+substituir contas existentes. Sem as credenciais de bootstrap e sem utilizadores na base de
+dados, o serviço falha explicitamente ao arrancar. A inscrição de outras contas exige um JWT
+de administrador (`POST /api/auth/register`); o login permanece público.
+
+### Perfis de acesso no Airports & Routes Service
+
+Os endpoints usam JWT e as regras existentes em `shared-core/.../SecurityConfig.java`
+(`ADMIN` herda as permissões):
+
+* `BACKOFFICE_OPERATOR`: gerir aeroportos e importar/exportar rotas.
+* `ATCC`: consultar e gerir rotas; consultar aeroportos e certificações.
+* `ATCC` e `BACKOFFICE_OPERATOR`: consultar aeroportos; atualizar/desativar rotas.
+
+Sem token válido, a API responde `401`; sem o perfil exigido, responde `403`. A autenticação
+entre serviços e o endpoint de contagem de voos ficam para integração com os outros membros.
+A consola H2 está desativada neste serviço e o segredo JWT e a password inicial não têm
+valores predefinidos: configura-os por variáveis de ambiente, nunca no repositório.
+Na coleção Postman, preenche `bootstrap_admin_username` e `bootstrap_admin_password` para
+login; usa o token obtido para o pedido `Register User` e cria as contas de teste de cada
+perfil. As passwords da coleção ficam vazias por omissão.
+
 ---
 
 ## 5\. Divisão de Trabalho — Projeto SIDIS (2026/2027)

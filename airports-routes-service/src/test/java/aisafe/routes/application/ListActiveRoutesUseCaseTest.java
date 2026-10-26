@@ -5,9 +5,7 @@ import aisafe.routes.domain.Route;
 import aisafe.routes.domain.RouteRepository;
 import aisafe.routes.domain.InvalidSortParameterException;
 import aisafe.shared.domain.InvalidListingCriteriaException;
-import aisafe.flights.domain.ScheduledFlightRepository;
 import aisafe.airports.domain.IataCode;
-import aisafe.shared.application.RouteDistanceService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -25,7 +23,7 @@ class ListActiveRoutesUseCaseTest {
     @Mock
     private RouteRepository routeRepository;
     @Mock
-    private ScheduledFlightRepository scheduledFlightRepository;
+    private FlightsServiceClient flightsServiceClient;
     @Mock
     private RouteDistanceService routeDistanceService;
 
@@ -40,7 +38,7 @@ class ListActiveRoutesUseCaseTest {
         
         when(routeRepository.findAllActive()).thenReturn(List.of(route));
         when(routeDistanceService.calculateDistanceKm(route)).thenReturn(300.0);
-        when(scheduledFlightRepository.countByRoute(any(), any())).thenReturn(5L);
+        when(flightsServiceClient.countFlightsByRoute(any(), any())).thenReturn(5L);
 
         List<ActiveRouteResponse> result = useCase.execute("active", "distance");
 
@@ -77,8 +75,8 @@ class ListActiveRoutesUseCaseTest {
         when(routeRepository.findAllActive()).thenReturn(List.of(route1, route2));
         when(routeDistanceService.calculateDistanceKm(route1)).thenReturn(300.0);
         when(routeDistanceService.calculateDistanceKm(route2)).thenReturn(500.0);
-        when(scheduledFlightRepository.countByRoute(route1.getOrigin(), route1.getDestination())).thenReturn(5L);
-        when(scheduledFlightRepository.countByRoute(route2.getOrigin(), route2.getDestination())).thenReturn(10L);
+        when(flightsServiceClient.countFlightsByRoute(route1.getOrigin(), route1.getDestination())).thenReturn(5L);
+        when(flightsServiceClient.countFlightsByRoute(route2.getOrigin(), route2.getDestination())).thenReturn(10L);
 
         // Popularity: route2 has 10L, route1 has 5L. Reversed order: route2, then route1
         List<ActiveRouteResponse> result = useCase.execute("active", "popularity");
@@ -101,7 +99,7 @@ class ListActiveRoutesUseCaseTest {
         when(routeRepository.findAllActive()).thenReturn(List.of(route1, route2));
         when(routeDistanceService.calculateDistanceKm(route1)).thenReturn(300.0);
         when(routeDistanceService.calculateDistanceKm(route2)).thenReturn(100.0);
-        when(scheduledFlightRepository.countByRoute(any(), any())).thenReturn(5L);
+        when(flightsServiceClient.countFlightsByRoute(any(), any())).thenReturn(5L);
 
         // Distance: route2 has 100.0, route1 has 300.0. Sorted: route2, then route1
         List<ActiveRouteResponse> result = useCase.execute(null, null);

@@ -1,7 +1,6 @@
 package aisafe.routes.infrastructure.persistence.jpa;
 
 import aisafe.airports.domain.IataCode;
-import aisafe.flights.infrastructure.persistence.jpa.SpringDataScheduledFlightRepository;
 import aisafe.routes.domain.Route;
 import aisafe.routes.domain.RouteRepository;
 import aisafe.routes.domain.RouteStatus;
@@ -28,12 +27,8 @@ class RouteRepositoryTest {
     @Autowired
     private RouteRepository routeRepository;
 
-    @Autowired
-    private SpringDataScheduledFlightRepository flightRepo;
-
     @Test
     void ensureFindByOriginAndDestinationWorksWithIataCode() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
         IataCode origin = new IataCode("LIS");
         IataCode destination = new IataCode("OPO");
@@ -49,7 +44,6 @@ class RouteRepositoryTest {
 
     @Test
     void ensureFindByOriginAndDestinationReturnsEmptyWhenNotFound() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
         IataCode origin = new IataCode("LIS");
         IataCode destination = new IataCode("MAD");
@@ -61,7 +55,6 @@ class RouteRepositoryTest {
 
     @Test
     void findCompatibleRoutesFiltersCorrectly() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
         // Active, compatible
         springRepo.save(new RouteJpaEntity("XXX", "YYY", 45, 300.0, 100, RouteStatus.ACTIVE));
@@ -81,7 +74,6 @@ class RouteRepositoryTest {
 
     @Test
     void ensureListSummariesForAirportReturnsRoutesWhereAirportIsOrigin() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
         springRepo.save(new RouteJpaEntity("LIS", "OPO", 45, 300.0, 150, RouteStatus.ACTIVE));
         springRepo.save(new RouteJpaEntity("MAD", "CDG", 90, 800.0, 200, RouteStatus.ACTIVE));
@@ -95,7 +87,6 @@ class RouteRepositoryTest {
 
     @Test
     void ensureListSummariesForAirportReturnsRoutesWhereAirportIsDestination() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
         springRepo.save(new RouteJpaEntity("CDG", "LIS", 120, 1200.0, 180, RouteStatus.ACTIVE));
         springRepo.save(new RouteJpaEntity("MAD", "CDG", 90, 800.0, 200, RouteStatus.ACTIVE));
@@ -109,7 +100,6 @@ class RouteRepositoryTest {
 
     @Test
     void ensureListSummariesForAirportExcludesRoutesForOtherAirports() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
         springRepo.save(new RouteJpaEntity("MAD", "CDG", 90, 800.0, 200, RouteStatus.ACTIVE));
         springRepo.save(new RouteJpaEntity("FRA", "AMS", 60, 600.0, 120, RouteStatus.ACTIVE));
@@ -121,7 +111,6 @@ class RouteRepositoryTest {
 
     @Test
     void ensureListSummariesForAirportReturnsVersionFromJpaEntity() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
         springRepo.saveAndFlush(new RouteJpaEntity("LIS", "OPO", 45, 300.0, 150, RouteStatus.ACTIVE));
 
@@ -133,7 +122,6 @@ class RouteRepositoryTest {
 
     @Test
     void ensureRouteRepositoryOperationsWork() {
-        flightRepo.deleteAll();
         springRepo.deleteAll();
 
         // 1. Save new

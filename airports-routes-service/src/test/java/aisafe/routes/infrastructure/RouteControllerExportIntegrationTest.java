@@ -89,6 +89,13 @@ class RouteControllerExportIntegrationTest {
     }
 
     @Test
+    void ensureExportRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/routes/export")
+                        .param("format", "geojson"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @WithMockUser(roles = "ADMIN")
     void ensureKmlExportWorksForAdmin() throws Exception {
         byte[] content = "<Placemark></Placemark>".getBytes();
@@ -103,4 +110,3 @@ class RouteControllerExportIntegrationTest {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("Placemark")));
     }
 }
-

@@ -5,6 +5,7 @@ import aisafe.security.domain.User;
 import aisafe.security.domain.UserRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,21 +14,31 @@ import org.springframework.transaction.annotation.Transactional;
 public class Bootstrap implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final String adminUsername;
+    private final String adminPassword;
 
-    public Bootstrap(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public Bootstrap(UserRepository userRepository,
+                     PasswordEncoder passwordEncoder,
+                     @Value("${aisafe.bootstrap.admin.username:}") String adminUsername,
+                     @Value("${aisafe.bootstrap.admin.password:}") String adminPassword) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.adminUsername = adminUsername;
+        this.adminPassword = adminPassword;
     }
 
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (userRepository.count() == 0) {
-            userRepository.save(new User("admin", passwordEncoder.encode("admin123"), Role.ADMIN));
-            userRepository.save(new User("operator", passwordEncoder.encode("operator123"), Role.BACKOFFICE_OPERATOR));
-            userRepository.save(new User("atcc", passwordEncoder.encode("atcc123"), Role.ATCC));
-            userRepository.save(new User("technician", passwordEncoder.encode("technician123"), Role.MAINTENANCE_TECHNICIAN));
-            userRepository.save(new User("supervisor", passwordEncoder.encode("supervisor123"), Role.MAINTENANCE_SUPERVISOR));
+        if (userRepository.count() != 0) {
+            return;
         }
+
+        if (adminUsername.isBlank() || adminPassword.isBlank()) {
+            throw new IllegalStateException(
+                    "Configure aisafe.bootstrap.admin.username and aisafe.bootstrap.admin.password before first startup");
+        }
+
+        userRepository.save(new User(adminUsername, passwordEncoder.encode(adminPassword), Role.ADMIN));
     }
 }

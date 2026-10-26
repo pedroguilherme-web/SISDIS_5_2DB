@@ -3,7 +3,6 @@ package aisafe.routes.infrastructure;
 import aisafe.airports.domain.IataCode;
 import aisafe.routes.application.FlightsServiceClient;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -21,17 +20,15 @@ public class HttpFlightsServiceClient implements FlightsServiceClient {
 
     @Override
     public long countFlightsByRoute(IataCode origin, IataCode destination) {
-        try {
-            ResponseEntity<Long> response = restTemplate.getForEntity(
-                    flightsServiceUrl + "/api/flights/count?origin={origin}&destination={destination}",
-                    Long.class,
-                    origin.getCode(),
-                    destination.getCode()
-            );
-            return response.getBody() != null ? response.getBody() : 0L;
-        } catch (Exception e) {
-            // Se o serviço falhar, assumimos 0 de popularidade temporariamente (Disponibilidade > Consistência forte)
-            return 0L;
+        Long count = restTemplate.getForObject(
+                flightsServiceUrl + "/api/flights/count?origin={origin}&destination={destination}",
+                Long.class,
+                origin.getCode(),
+                destination.getCode()
+        );
+        if (count == null) {
+            throw new IllegalStateException("Flights service returned an empty route-count response");
         }
+        return count;
     }
 }
