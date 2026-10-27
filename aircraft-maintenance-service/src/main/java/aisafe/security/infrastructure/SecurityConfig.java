@@ -72,7 +72,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/aircraftModels/import").hasRole("BACKOFFICE_OPERATOR") // US225 (BONUS)
                         .requestMatchers(HttpMethod.GET, "/api/aircraftModels/*/image").hasAnyRole("BACKOFFICE_OPERATOR", "ATCC") // US202
                         .requestMatchers(HttpMethod.PATCH, "/api/aircraftModels/*/image").hasRole("BACKOFFICE_OPERATOR") // US202
-                        .requestMatchers(HttpMethod.GET, "/api/aircraftModels/*").hasAnyRole("BACKOFFICE_OPERATOR", "ATCC") // US103
+                        .requestMatchers(HttpMethod.GET, "/api/aircraftModels/*").permitAll() // Public/Inter-service lookup (used by airports-routes-service)
                         .requestMatchers(HttpMethod.GET, "/api/aircraftModels").hasAnyRole("BACKOFFICE_OPERATOR", "ATCC") // US103
                         // WP #4A/4B - Maintenance
                         .requestMatchers(HttpMethod.POST, "/api/maintenance/templates/import").hasRole("MAINTENANCE_TECHNICIAN") // US225 (BONUS)
