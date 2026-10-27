@@ -73,10 +73,10 @@ Import the file [`aisafe-aircraft-maintenance.postman_collection.json`](aisafe-a
 1. **Auth Login:** Logs in as `atcc` (password `atcc123`) and automatically saves the JWT token into the collection environment variable.
 2. **Local Data Retrieval:** Executes `GET http://localhost:8081/api/aircrafts/CS-TKA`. Data is found locally on Instance 1 and returned with `200 OK`.
 3. **Multi-Peer Forwarding (Demonstration for evaluation):**
-   * Register a new aircraft `CS-P2` on **Instance 2** (`POST http://localhost:8082/api/aircrafts`).
-   * Query `CS-P2` through **Instance 1** (`GET http://localhost:8081/api/aircrafts/CS-P2`) $\rightarrow$ Instance 1 forwards unicast to Instance 2 $\rightarrow$ returns `200 OK`.
-   * Register a new aircraft `CS-P3` on **Instance 3** (`POST http://localhost:8083/api/aircrafts`).
-   * Query `CS-P3` through **Instance 1** (`GET http://localhost:8081/api/aircrafts/CS-P3`) $\rightarrow$ Instance 1 misses, checks Instance 2 (misses), queries Instance 3 $\rightarrow$ returns `200 OK`.
+   * Register a new aircraft `CS-PTB` on **Instance 2** (`POST http://localhost:8082/api/aircrafts`).
+   * Query `CS-PTB` through **Instance 1** (`GET http://localhost:8081/api/aircrafts/CS-PTB`) $\rightarrow$ Instance 1 forwards unicast to Instance 2 $\rightarrow$ returns `200 OK`.
+   * Register a new aircraft `CS-PTC` on **Instance 3** (`POST http://localhost:8083/api/aircrafts`).
+   * Query `CS-PTC` through **Instance 1** (`GET http://localhost:8081/api/aircrafts/CS-PTC`) $\rightarrow$ Instance 1 misses, checks Instance 2 (misses), queries Instance 3 $\rightarrow$ returns `200 OK`.
 4. **Resilience & Fault Tolerance:**
    * Query non-existent aircraft `CS-ZZZ` on Instance 1 $\rightarrow$ queries all configured peers $\rightarrow$ none has it $\rightarrow$ returns clean `404 Not Found` without circular storms.
    * Stop an instance, query from another $\rightarrow$ timeout is caught and logged, remaining peers are queried, returning `404 Not Found` gracefully without crashing.

@@ -260,7 +260,7 @@
 			"name": "2. Multi-Peer P2P Forwarding Tests (3 Instances)",
 			"item": [
 				{
-					"name": "Step A: Register Aircraft CS-P2 exclusively on Instance 2 (:8082)",
+					"name": "Step A: Register Aircraft CS-PTB exclusively on Instance 2 (:8082)",
 					"event": [
 						{
 							"listen": "test",
@@ -288,7 +288,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"modelName\": \"Airbus A320neo\",\n    \"registrationNumber\": \"CS-P2\",\n    \"manufacturingDate\": \"2022-01-15\",\n    \"seatCapacity\": 180,\n    \"range\": 6500.0,\n    \"status\": \"AVAILABLE\",\n    \"features\": [\"WiFi\", \"USB Power\"]\n}"
+							"raw": "{\n    \"modelName\": \"Airbus A320neo\",\n    \"registrationNumber\": \"CS-PTB\",\n    \"manufacturingDate\": \"2022-01-15\",\n    \"seatCapacity\": 180,\n    \"range\": 6500.0,\n    \"status\": \"AVAILABLE\",\n    \"features\": [\"WiFi\", \"USB Power\"]\n}"
 						},
 						"url": {
 							"raw": "{{instance2_url}}/api/aircrafts",
@@ -298,7 +298,7 @@
 					}
 				},
 				{
-					"name": "Step B: Query CS-P2 through Instance 1 (Forwarding 1 -> 2)",
+					"name": "Step B: Query CS-PTB through Instance 1 (Forwarding 1 -> 2)",
 					"event": [
 						{
 							"listen": "test",
@@ -307,9 +307,9 @@
 									"pm.test('Status code is 200 via P2P Forwarding', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
-									"pm.test('Returned aircraft is CS-P2 retrieved from Instance 2', function () {",
+									"pm.test('Returned aircraft is CS-PTB retrieved from Instance 2', function () {",
 									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.registrationNumber).to.eql('CS-P2');",
+									"    pm.expect(jsonData.registrationNumber).to.eql('CS-PTB');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -325,14 +325,14 @@
 							}
 						],
 						"url": {
-							"raw": "{{instance1_url}}/api/aircrafts/CS-P2",
+							"raw": "{{instance1_url}}/api/aircrafts/CS-PTB",
 							"host": ["{{instance1_url}}"],
-							"path": ["api", "aircrafts", "CS-P2"]
+							"path": ["api", "aircrafts", "CS-PTB"]
 						}
 					}
 				},
 				{
-					"name": "Step C: Register Aircraft CS-P3 exclusively on Instance 3 (:8083)",
+					"name": "Step C: Register Aircraft CS-PTC exclusively on Instance 3 (:8083)",
 					"event": [
 						{
 							"listen": "test",
@@ -360,7 +360,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"modelName\": \"Boeing 737-800\",\n    \"registrationNumber\": \"CS-P3\",\n    \"manufacturingDate\": \"2023-05-20\",\n    \"seatCapacity\": 189,\n    \"range\": 5765.0,\n    \"status\": \"AVAILABLE\",\n    \"features\": [\"Satellite Internet\"]\n}"
+							"raw": "{\n    \"modelName\": \"Boeing 737-800\",\n    \"registrationNumber\": \"CS-PTC\",\n    \"manufacturingDate\": \"2023-05-20\",\n    \"seatCapacity\": 189,\n    \"range\": 5765.0,\n    \"status\": \"AVAILABLE\",\n    \"features\": [\"Satellite Internet\"]\n}"
 						},
 						"url": {
 							"raw": "{{instance3_url}}/api/aircrafts",
@@ -370,7 +370,7 @@
 					}
 				},
 				{
-					"name": "Step D: Query CS-P3 through Instance 1 (Non-Binary: 1 misses, 2 misses, 3 resolves!)",
+					"name": "Step D: Query CS-PTC through Instance 1 (Non-Binary: 1 misses, 2 misses, 3 resolves!)",
 					"event": [
 						{
 							"listen": "test",
@@ -379,9 +379,9 @@
 									"pm.test('Status code is 200 via Multi-Peer Forwarding', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
-									"pm.test('Returned aircraft is CS-P3 resolved via Instance 3', function () {",
+									"pm.test('Returned aircraft is CS-PTC resolved via Instance 3', function () {",
 									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData.registrationNumber).to.eql('CS-P3');",
+									"    pm.expect(jsonData.registrationNumber).to.eql('CS-PTC');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -397,14 +397,14 @@
 							}
 						],
 						"url": {
-							"raw": "{{instance1_url}}/api/aircrafts/CS-P3",
+							"raw": "{{instance1_url}}/api/aircrafts/CS-PTC",
 							"host": ["{{instance1_url}}"],
-							"path": ["api", "aircrafts", "CS-P3"]
+							"path": ["api", "aircrafts", "CS-PTC"]
 						}
 					}
 				},
 				{
-					"name": "Step E: Query CS-P3 through Instance 2 (Forwarding 2 -> 3)",
+					"name": "Step E: Query CS-PTC through Instance 2 (Forwarding 2 -> 3)",
 					"event": [
 						{
 							"listen": "test",
@@ -413,8 +413,8 @@
 									"pm.test('Status code is 200 via P2P 2 -> 3', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
-									"pm.test('Returned aircraft is CS-P3 resolved from Instance 3', function () {",
-									"    pm.expect(pm.response.json().registrationNumber).to.eql('CS-P3');",
+									"pm.test('Returned aircraft is CS-PTC resolved from Instance 3', function () {",
+									"    pm.expect(pm.response.json().registrationNumber).to.eql('CS-PTC');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -430,14 +430,14 @@
 							}
 						],
 						"url": {
-							"raw": "{{instance2_url}}/api/aircrafts/CS-P3",
+							"raw": "{{instance2_url}}/api/aircrafts/CS-PTC",
 							"host": ["{{instance2_url}}"],
-							"path": ["api", "aircrafts", "CS-P3"]
+							"path": ["api", "aircrafts", "CS-PTC"]
 						}
 					}
 				},
 				{
-					"name": "Step F: Query CS-P2 through Instance 3 (Forwarding 3 -> 2)",
+					"name": "Step F: Query CS-PTB through Instance 3 (Forwarding 3 -> 2)",
 					"event": [
 						{
 							"listen": "test",
@@ -446,8 +446,8 @@
 									"pm.test('Status code is 200 via P2P 3 -> 2', function () {",
 									"    pm.response.to.have.status(200);",
 									"});",
-									"pm.test('Returned aircraft is CS-P2 resolved from Instance 2', function () {",
-									"    pm.expect(pm.response.json().registrationNumber).to.eql('CS-P2');",
+									"pm.test('Returned aircraft is CS-PTB resolved from Instance 2', function () {",
+									"    pm.expect(pm.response.json().registrationNumber).to.eql('CS-PTB');",
 									"});"
 								],
 								"type": "text/javascript"
@@ -463,9 +463,9 @@
 							}
 						],
 						"url": {
-							"raw": "{{instance3_url}}/api/aircrafts/CS-P2",
+							"raw": "{{instance3_url}}/api/aircrafts/CS-PTB",
 							"host": ["{{instance3_url}}"],
-							"path": ["api", "aircrafts", "CS-P2"]
+							"path": ["api", "aircrafts", "CS-PTB"]
 						}
 					}
 				}
