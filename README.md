@@ -21,7 +21,8 @@ The system is built around **role-based access control** with five distinct role
 | Maintenance Technician | Record maintenance operations                      |
 | Maintenance Supervisor | Manage parts, templates, and maintenance oversight |
 
-All endpoints are authenticated via **JWT** and return **HAL-compliant** responses (HATEOAS) with links to related resources.
+Domain endpoints are protected by **JWT** and role-based access control; login is public.
+Responses use **HAL** (HATEOAS) links to related resources.
 
 ## Tech Stack
 
@@ -113,30 +114,27 @@ src/main/java/aisafe/
 
 ## Getting Started
 
+Before the first startup, configure a JWT signing key and the initial administrator
+credentials. The bootstrap account is created only when the user database is empty.
+
 ```bash
+export JWT_SECRET="$(openssl rand -base64 32)"
+export BOOTSTRAP_ADMIN_USERNAME='admin'
+export BOOTSTRAP_ADMIN_PASSWORD='<strong-unique-password>'
 ./mvnw spring-boot:run
 ```
 
-The application seeds sample data on first startup (see Bootstrap). Once running:
+On first startup, the application creates the configured administrator account if the user
+database is empty. Once running:
 
 | Resource     | URL                                         |
 |--------------|---------------------------------------------|
 | Swagger UI   | http://localhost:8080/swagger-ui/index.html |
 | OpenAPI spec | http://localhost:8080/v3/api-docs           |
 | HTML docs    | http://localhost:8080/docs.html             |
-| H2 console   | http://localhost:8080/h2-console            |
-
-H2 JDBC URL: `jdbc:h2:mem:aisafedb`
-
-### Default Credentials
-
-| Username   | Password      | Role                   |
-|------------|---------------|------------------------|
-| admin      | admin123      | Admin                  |
-| operator   | operator123   | Backoffice Operator    |
-| atcc       | atcc123       | ATCC                   |
-| technician | technician123 | Maintenance Technician |
-| supervisor | supervisor123 | Maintenance Supervisor |
+The H2 console is not exposed. To create additional users or assign roles, authenticate as
+the bootstrap administrator and use `POST /api/auth/register`; public registration is
+disabled to prevent self-assignment of privileged roles.
 
 Authenticate via `POST /api/auth/login` to receive a JWT token, then pass it as `Authorization: Bearer <token>` on subsequent requests.
 
