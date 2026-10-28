@@ -360,7 +360,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n    \"modelName\": \"Boeing 737-800\",\n    \"registrationNumber\": \"CS-PTC\",\n    \"manufacturingDate\": \"2023-05-20\",\n    \"seatCapacity\": 189,\n    \"range\": 5765.0,\n    \"status\": \"AVAILABLE\",\n    \"features\": [\"Satellite Internet\"]\n}"
+							"raw": "{\n    \"modelName\": \"Boeing 737 MAX\",\n    \"registrationNumber\": \"CS-PTC\",\n    \"manufacturingDate\": \"2023-05-20\",\n    \"seatCapacity\": 189,\n    \"range\": 5765.0,\n    \"status\": \"AVAILABLE\",\n    \"features\": [\"Satellite Internet\"]\n}"
 						},
 						"url": {
 							"raw": "{{instance3_url}}/api/aircrafts",
