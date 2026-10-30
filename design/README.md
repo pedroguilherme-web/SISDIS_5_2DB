@@ -76,6 +76,7 @@ The Container diagram illustrates the deployable runtime units, network ports, d
 | :--- | :--- | :--- | :--- | :--- |
 | **Aircraft & Maintenance Service** | `Instance 1` | `8081` | H2 (`aircraft_maintenance_db_1`) | Aircraft models, fleet status, maintenance templates, work orders, parts inventory. |
 | **Aircraft & Maintenance Service** | `Instance 2` | `8082` | H2 (`aircraft_maintenance_db_2`) | Cloned replica for fault tolerance, replication, and peer query forwarding. |
+| **Aircraft & Maintenance Service** | `Instance 3` | `8083` | H2 (`aircraft_maintenance_db_3`) | Additional cloned replica for non-binary multi-peer forwarding mesh. |
 | **Airports & Routes Service** | `Instance 1` | `8091` | H2 (`airports_routes_db_1`) | Airport infrastructure, runways, certifications, route distances and histories. |
 | **Airports & Routes Service** | `Instance 2` | `8092` | H2 (`airports_routes_db_2`) | Cloned replica for airport/route queries. |
 | **Flight Operations Service** | `Instance 1` | `8071` | H2 (`flight_operations_db_1`) | Flight schedules, route assignments, operational telemetry, availability queries. |
@@ -88,7 +89,7 @@ The Container diagram illustrates the deployable runtime units, network ports, d
    * *Flight Operations* queries *Airports & Routes* (`GET /api/routes/{id}`) to check airport runway and route distance feasibility.
    * *Aircraft & Maintenance* queries *Flight Operations* (`GET /api/flights/aircraft/{reg}/hours`) to compute cumulative operational flight hours for periodic maintenance thresholds.
 3. **Intra-Service P2P Forwarding (Unicast):**
-   * Peer-to-peer unicast HTTP GET requests between `Instance 1` (`:8081`) and `Instance 2` (`:8082`) when an entity is not found in the local database.
+   * Peer-to-peer unicast HTTP GET requests across `Instance 1` (`:8081`), `Instance 2` (`:8082`), and `Instance 3` (`:8083`) when an entity is not found in the local database.
 
 ---
 
@@ -111,7 +112,7 @@ Focuses specifically on the internal architecture of the **Aircraft & Maintenanc
    * `ScheduleMaintenanceUseCase`, `CompleteMaintenanceRecordUseCase`, `ViewMaintenanceDueAircraftUseCase`.
 4. **Inter-Service Decoupling Clients:**
    * `FlightServiceHttpClient` (implements `FlightServiceClient`): Uses Spring `RestClient` to consume `http://localhost:8071` asynchronously/synchronously.
-   * `RouteServiceHttpClient` (implements `RouteServiceClient`): Consumes `http://localhost:8091`.
+   * `RouteServiceHttpClient` (implements `RouteServiceClient`): Consumes `http://localhost:8092` (or `http://localhost:8091`).
 5. **Persistence Layer & Concurrency Control:**
    * Spring Data JPA Repositories with Hibernate.
    * **Optimistic Locking:** JPA entities (`AircraftJpaEntity`, `MaintenanceRecordJpaEntity`) feature an `@Version` field to prevent lost updates during concurrent edits.
