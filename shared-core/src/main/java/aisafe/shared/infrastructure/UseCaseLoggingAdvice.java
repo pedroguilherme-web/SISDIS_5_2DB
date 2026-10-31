@@ -1,16 +1,23 @@
 package aisafe.shared.infrastructure;
 
+import aisafe.security.infrastructure.persistence.jpa.AuditLogJpaEntity;
+import aisafe.security.infrastructure.persistence.jpa.SpringDataAuditLogRepository;
 import aisafe.shared.application.SuppressArgLogging;
 import aisafe.shared.application.UseCase;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 
 /**
@@ -39,7 +46,10 @@ import java.util.Arrays;
 @Component
 @Aspect
 @Order(1)
+@RequiredArgsConstructor
 public class UseCaseLoggingAdvice {
+
+    private final SpringDataAuditLogRepository auditLogRepository;
 
     /** Matches any class annotated with {@link UseCase}. */
     @Pointcut("within(@aisafe.shared.application.UseCase *)")
@@ -67,17 +77,58 @@ public class UseCaseLoggingAdvice {
     @Around("publicMethodInsideAUseCase()")
     public Object aroundServiceMethodAdvice(final ProceedingJoinPoint pjp) throws Throwable {
         StopWatch stopWatch = new StopWatch();
+        Class<?> targetClass = pjp.getTarget().getClass();
+        String actionName = targetClass.getSimpleName() + "#" + pjp.getSignature().getName();
+
+        boolean suppress = targetClass.isAnnotationPresent(SuppressArgLogging.class);
+        String args = suppress ? "[SUPPRESSED]" : Arrays.toString(pjp.getArgs());
+        if (args.length() > 1950) {
+            args = args.substring(0, 1950) + "...";
+        }
+
+        String username = resolveCurrentUsername();
+
+        log.info("Executing use case: {} by user '{}' with parameters: {}", actionName, username, args);
+        stopWatch.start();
+
         try {
-            boolean suppress = pjp.getTarget().getClass().isAnnotationPresent(SuppressArgLogging.class);
-            String args = suppress ? "[SUPPRESSED]" : Arrays.toString(pjp.getArgs());
-            log.info("Executing use case: {}#{} with parameters: {}", pjp.getTarget().getClass(),
-                    pjp.getSignature().getName(), args);
-            stopWatch.start();
-            return pjp.proceed();
+            Object result = pjp.proceed();
+            saveAuditLog(username, actionName, args, "SUCCESS", null);
+            return result;
+        } catch (Throwable ex) {
+            String errorMsg = ex.getClass().getSimpleName() + ": " + ex.getMessage();
+            if (errorMsg.length() > 950) {
+                errorMsg = errorMsg.substring(0, 950) + "...";
+            }
+            saveAuditLog(username, actionName, args, "FAILED", errorMsg);
+            throw ex;
         } finally {
             stopWatch.stop();
-            log.info("Finished executing use case {}#{} in {}ms", pjp.getTarget().getClass(),
-                    pjp.getSignature().getName(), stopWatch.getTotalTimeMillis());
+            log.info("Finished executing use case {} in {}ms", actionName, stopWatch.getTotalTimeMillis());
+        }
+    }
+
+    private String resolveCurrentUsername() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && auth.getName() != null) {
+            return auth.getName();
+        }
+        return "ANONYMOUS";
+    }
+
+    private void saveAuditLog(String username, String action, String args, String status, String errorMsg) {
+        try {
+            AuditLogJpaEntity logEntry = new AuditLogJpaEntity(
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    username,
+                    action,
+                    args,
+                    status,
+                    errorMsg
+            );
+            auditLogRepository.save(logEntry);
+        } catch (Exception e) {
+            log.warn("Could not persist audit log entry for {}: {}", action, e.getMessage());
         }
     }
 }

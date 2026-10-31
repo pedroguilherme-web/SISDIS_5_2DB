@@ -28,8 +28,8 @@
 		<url/>
 	</scm>
 	<properties>
-		<java.version>25</java.version>
-		<maven.compiler.release>24</maven.compiler.release>
+		<java.version>21</java.version>
+		<maven.compiler.release>21</maven.compiler.release>
 	</properties>
 	<dependencies>
 		<!-- Intercetor AOP (Adicionado) -->
@@ -37,11 +37,6 @@
 			<groupId>aisafe</groupId>
 			<artifactId>shared-core</artifactId>
 			<version>0.0.1-SNAPSHOT</version>
-		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-aop</artifactId>
 		</dependency>
 
 		<dependency>
@@ -63,6 +58,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.h2database</groupId>

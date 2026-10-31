@@ -1,4 +1,4 @@
-package aisafe.shared.infrastructure;
+package aisafe.flights.infrastructure;
 
 import aisafe.security.domain.Role;
 import aisafe.security.domain.User;

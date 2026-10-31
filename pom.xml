@@ -32,6 +32,7 @@
 		<module>shared-core</module>
 		<module>airports-routes-service</module>
 		<module>aircraft-maintenance-service</module>
+		<module>flight-operations-service</module>
 	</modules>
 
 	<properties>
