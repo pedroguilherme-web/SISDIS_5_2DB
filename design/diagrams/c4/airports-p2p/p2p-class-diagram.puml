@@ -1,0 +1,81 @@
+git
+@startuml
+title P2P Infrastructure - Class Diagram
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+left to right direction
+
+package "shared-core - P2P Infrastructure" {
+
+    class P2PSearchController <<Controller>>
+
+    class DistributedSearchService <<Service>> {
+        + distributedSearch(...)
+    }
+
+    interface LocalSearchProvider
+
+    class PeerClient <<HTTP Client>> {
+        + forwardSearch(...)
+    }
+
+    class PeerRegistry <<Registry>>
+
+    class PeerNode <<Model>>
+
+    class DistributedSearchRequest <<DTO>> {
+        + requestId
+        + path
+        + ttl
+        + nextHop()
+    }
+
+    class SearchRequestTracker <<Service>>
+
+    class JsonResponseAggregator <<Service>>
+
+    class PeerTokenService <<Security>>
+
+    class PeerAuthenticationFilter <<Security>>
+
+    class P2PSecurityConfig <<Configuration>>
+
+    class PeerRegistryInitializer <<Configuration>>
+
+    class P2PConfig <<Configuration>>
+}
+
+package "airports-routes-service" {
+    class AirportLocalSearchProvider <<Adapter>>
+    class SearchAirportUseCase <<Application>>
+}
+
+P2PSearchController --> DistributedSearchService : delegates search
+
+DistributedSearchService --> LocalSearchProvider : searches locally
+DistributedSearchService --> PeerRegistry : discovers peers
+DistributedSearchService --> PeerClient : forwards requests
+DistributedSearchService --> SearchRequestTracker : detects duplicates
+DistributedSearchService --> JsonResponseAggregator : merges responses
+DistributedSearchService --> DistributedSearchRequest : processes
+
+PeerRegistry "1" o-- "*" PeerNode : maintains
+PeerClient --> PeerTokenService : generates JWT
+PeerClient --> DistributedSearchRequest : forwards
+
+PeerAuthenticationFilter --> PeerTokenService : validates JWT
+P2PSecurityConfig --> PeerAuthenticationFilter : configures
+
+PeerRegistryInitializer --> PeerRegistry : registers peers
+
+AirportLocalSearchProvider ..|> LocalSearchProvider : implements
+AirportLocalSearchProvider --> SearchAirportUseCase : executes
+
+note bottom of DistributedSearchService
+Coordinates local and remote searches.
+Uses TTL and request tracking
+to limit forwarding and loops.
+end note
+
+@enduml

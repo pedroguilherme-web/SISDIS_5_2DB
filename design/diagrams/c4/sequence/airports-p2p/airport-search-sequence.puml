@@ -1,0 +1,59 @@
+
+@startuml
+title Pesquisa distribuida P2P de aeroportos
+
+autonumber
+
+actor "Cliente" as Client
+participant "P2PSearchController\n(Peer 1)" as Controller1
+participant "PeerAuthenticationFilter\n(Peer 1)" as Auth1
+participant "DistributedSearchService\n(Peer 1)" as Service1
+participant "AirportLocalSearchProvider\n(Peer 1)" as Local1
+participant "PeerClient" as PeerClient
+participant "PeerAuthenticationFilter\n(Peer 2)" as Auth2
+participant "P2PSearchController\n(Peer 2)" as Controller2
+participant "DistributedSearchService\n(Peer 2)" as Service2
+participant "AirportLocalSearchProvider\n(Peer 2)" as Local2
+
+note over Client,Controller1
+Pedido P2P autenticado com JWT
+end note
+
+Client -> Auth1 : POST /api/p2p/search + JWT
+Auth1 -> Auth1 : Validar token e permissao PEER
+
+alt JWT invalido ou ausente
+    Auth1 --> Client : HTTP 401 / 403
+else JWT valido
+    Auth1 -> Controller1 : Pedido autorizado
+    Controller1 -> Service1 : Pesquisa distribuida
+    Service1 -> Service1 : Verificar requestId e TTL
+
+    alt Pedido duplicado ou TTL esgotado
+        Service1 --> Controller1 : Sem encaminhamento
+    else Pedido aceite
+        Service1 -> Local1 : Pesquisar aeroportos locais
+        Local1 --> Service1 : Resultados locais
+
+        opt Existe peer remoto e TTL permite
+            Service1 -> PeerClient : Encaminhar pesquisa
+            PeerClient -> PeerClient : Diminuir TTL e gerar JWT
+            PeerClient -> Auth2 : POST /api/p2p/search + JWT
+            Auth2 -> Auth2 : Validar JWT e permissao PEER
+            Auth2 -> Controller2 : Pedido autorizado
+            Controller2 -> Service2 : Pesquisa distribuida
+            Service2 -> Local2 : Pesquisar aeroportos locais
+            Local2 --> Service2 : Resultados locais
+            Service2 --> Controller2 : Resultados
+            Controller2 --> PeerClient : Resposta JSON
+            PeerClient --> Service1 : Resultados remotos
+        end
+
+        Service1 -> Service1 : Agregar resultados JSON
+        Service1 --> Controller1 : Resultado agregado
+    end
+
+    Controller1 --> Client : Resposta JSON
+end
+
+@enduml
