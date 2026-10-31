@@ -1,0 +1,31 @@
+@startuml _context
+!include <C4/C4_Context>
+
+' Fallback includes for environments without local standard library
+'!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+
+title System Context Diagram - AISafe Flight Management System (C4 Level 1)
+
+Person(admin, "System Administrator", "Manages user credentials, role-based access control, security policies, and system-wide configurations.")
+Person(bo_operator, "Backoffice Operator", "Registers aircraft models, aircraft fleet instances, and defines airport infrastructure and route networks.")
+Person(atcc, "Air Traffic Control Officer (ATCC)", "Monitors real-time aircraft operational status, schedules flights, and assigns available aircraft to compatible routes.")
+Person(technician, "Maintenance Technician / Supervisor", "Defines maintenance templates, schedules work orders, executes inspections/repairs, logs part replacements, and turnaround times.")
+
+System_Boundary(aisafe_system, "AISafe Flight Management System") {
+    System(aisafe, "AISafe Distributed Platform", "Decentralized, fault-tolerant flight management system providing segregated distributed components for Aircraft & Maintenance, Airports & Routes, and Flight Operations with peer-to-peer data forwarding.")
+}
+
+System_Ext(aviation_auth, "Civil Aviation Authority (CAA / ICAO)", "External authority providing standard aircraft certification norms, IATA/ICAO airport codes, and regulatory safety guidelines.")
+System_Ext(weather_svc, "Aviation Weather Service", "External meteorological service delivering atmospheric and wind forecasts for flight path and route compatibility analysis.")
+
+Rel(admin, aisafe, "Configures roles, audits access, and monitors distributed services", "HTTPS / REST")
+Rel(bo_operator, aisafe, "Registers aircraft models, fleet items, airports, and routes", "HTTPS / REST")
+Rel(atcc, aisafe, "Schedules flights and assigns aircraft under range/capacity constraints", "HTTPS / REST")
+Rel(technician, aisafe, "Plans and completes maintenance records, tracks component wear, and manages inventory", "HTTPS / REST")
+
+Rel(aisafe, aviation_auth, "Validates registration identifiers and regulatory compliance", "HTTPS / REST")
+Rel(aisafe, weather_svc, "Queries meteorological reports for route flight planning", "HTTPS / REST")
+
+@enduml

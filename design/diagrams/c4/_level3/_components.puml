@@ -1,0 +1,83 @@
+@startuml _components
+!include <C4/C4_Component>
+
+' Fallback includes for environments without local standard library
+'!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Aircraft & Maintenance Service (C4 Level 3)
+
+Container_Ext(spa, "Web Client / API Gateway", "React SPA / Postman", "Sends JSON/REST requests to manage aircraft and maintenance workflows.")
+Container_Ext(peer_instance, "Peer Replica Instances", "Spring Boot (Ports 8082, 8083)", "Cloned peer replicas hosting partitioned or replicated aircraft/maintenance data.")
+Container_Ext(flight_service, "Flight Operations Service", "Spring Boot (Port 8071)", "Provides scheduled flight hours and aircraft assignment telemetry.")
+Container_Ext(route_service, "Airports & Routes Service", "Spring Boot (Port 8092)", "Provides route requirements, runway limitations, and distance calculations.")
+
+Container_Boundary(am_container, "Aircraft & Maintenance Service Container [Port 8081]") {
+    
+    Component(security_filter, "Security & Auth Filter", "Spring Security / JWT", "Intercepts inbound HTTP requests, verifies Bearer JWT tokens, and enforces RBAC.")
+    
+    Component(auth_ctrl, "AuthController", "Spring MVC REST Controller", "Exposes /api/auth/** for operator login and JWT token issuance.")
+    Component(aircraft_ctrl, "AircraftController", "Spring MVC REST Controller", "Exposes /api/aircrafts/** for aircraft registration, queries, and status updates.")
+    Component(model_ctrl, "AircraftModelController", "Spring MVC REST Controller", "Exposes /api/aircraftModels/** for aircraft model specification catalog.")
+    Component(maint_ctrl, "MaintenanceController", "Spring MVC REST Controller", "Exposes /api/maintenance/** for templates, work orders, parts inventory, and turnaround metrics.")
+
+    Component(forwarding_aspect, "PeerForwardingAspect", "Spring AOP (@Around)", "Intercepts HTTP GET requests. If a local NotFoundException occurs, forwards unicast HTTP GET to configured peer URLs (8082, 8083) with 'X-Peer-Forwarded' header.")
+
+    Component(aircraft_usecases, "Aircraft Application Services", "Spring Use Cases", "Executes business logic for aircraft lifecycle: RegisterAircraft, UpdateStatus, ViewDetails, SearchFleet.")
+    Component(maint_usecases, "Maintenance Application Services", "Spring Use Cases", "Executes maintenance logic: ScheduleMaintenance, CompleteWorkOrder, AlertMaintenanceDue, LogPartsUsed.")
+    Component(auth_usecases, "Auth Application Services", "Spring Use Cases", "Handles AuthenticateUserUseCase, RegisterUserUseCase, and JwtService token hashing.")
+
+    Component(flight_client, "FlightServiceHttpClient", "Spring RestClient", "HTTP client calling Flight Operations Service to compute operational flight hours and utilization.")
+    Component(route_client, "RouteServiceHttpClient", "Spring RestClient", "HTTP client calling Airports & Routes Service to fetch compatible routes and range profiles.")
+
+    Component(aircraft_repo, "Aircraft Repository Layer", "Spring Data JPA Repositories", "Manages persistence for Aircraft and AircraftModel entities with @Version optimistic locking.")
+    Component(maint_repo, "Maintenance Repository Layer", "Spring Data JPA Repositories", "Manages persistence for MaintenanceRecord, Template, and Part entities with @Version optimistic locking.")
+    Component(user_repo, "User Repository Layer", "Spring Data JPA Repository", "Manages user credentials and roles in local database.")
+
+    Component(ex_handler, "GlobalExceptionHandler", "Spring @ControllerAdvice", "Translates domain and system exceptions into standardized REST JSON errors (400, 404, 409, 500).")
+
+    ContainerDb(local_db, "Local H2 Database", "H2 In-Memory (aircraft_maintenance_db_1)", "Stores tables for aircrafts, aircraft_models, maintenance_record, maintenance_template, maintenance_part, and users.")
+}
+
+' External traffic
+Rel(spa, security_filter, "Sends REST requests", "JSON / HTTPS")
+Rel(security_filter, auth_ctrl, "Routes valid auth calls", "Java Method")
+Rel(security_filter, aircraft_ctrl, "Routes valid aircraft calls", "Java Method")
+Rel(security_filter, model_ctrl, "Routes valid model calls", "Java Method")
+Rel(security_filter, maint_ctrl, "Routes valid maintenance calls", "Java Method")
+
+' AOP Aspect interception
+Rel(forwarding_aspect, aircraft_ctrl, "Intercepts GET execution on local miss", "AOP JoinPoint")
+Rel(forwarding_aspect, maint_ctrl, "Intercepts GET execution on local miss", "AOP JoinPoint")
+Rel(forwarding_aspect, model_ctrl, "Intercepts GET execution on local miss", "AOP JoinPoint")
+Rel(forwarding_aspect, peer_instance, "Unicast HTTP GET forward (X-Peer-Forwarded: true)", "HTTP GET")
+
+' Controllers to Use Cases
+Rel(auth_ctrl, auth_usecases, "Invokes", "Java Call")
+Rel(aircraft_ctrl, aircraft_usecases, "Invokes", "Java Call")
+Rel(model_ctrl, aircraft_usecases, "Invokes", "Java Call")
+Rel(maint_ctrl, maint_usecases, "Invokes", "Java Call")
+
+' Use Cases to Inter-Service HTTP Clients
+Rel(aircraft_usecases, flight_client, "Invokes operational telemetry", "Java Call")
+Rel(aircraft_usecases, route_client, "Invokes route verification", "Java Call")
+Rel(maint_usecases, flight_client, "Queries accumulated flight hours", "Java Call")
+Rel(flight_client, flight_service, "Fetches flight hours & logs", "JSON / HTTP REST")
+Rel(route_client, route_service, "Fetches route definitions", "JSON / HTTP REST")
+
+' Use Cases to Repositories
+Rel(auth_usecases, user_repo, "Queries / persists users", "Spring Data JPA")
+Rel(aircraft_usecases, aircraft_repo, "Queries / persists aircraft & models", "Spring Data JPA")
+Rel(maint_usecases, maint_repo, "Queries / persists maintenance records & parts", "Spring Data JPA")
+
+' Repositories to Local Database
+Rel(aircraft_repo, local_db, "Reads / writes aircraft tables", "JDBC / SQL")
+Rel(maint_repo, local_db, "Reads / writes maintenance tables", "JDBC / SQL")
+Rel(user_repo, local_db, "Reads / writes user credentials", "JDBC / SQL")
+
+' Exception Handler
+Rel(ex_handler, aircraft_ctrl, "Catches domain exceptions", "AOP / Advice")
+Rel(ex_handler, maint_ctrl, "Catches domain exceptions", "AOP / Advice")
+
+@enduml

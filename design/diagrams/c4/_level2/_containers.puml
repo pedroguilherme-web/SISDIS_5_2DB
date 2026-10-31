@@ -1,0 +1,79 @@
+@startuml _containers
+!include <C4/C4_Container>
+
+' Fallback includes for environments without local standard library
+'!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Container Diagram - AISafe Distributed System (C4 Level 2)
+
+Person(user, "User / Operator", "Admin, Backoffice Operator, ATCC, or Maintenance Technician")
+
+System_Boundary(client_tier, "Client Tier") {
+    Container(spa, "Web Browser / API Client", "React SPA / Postman / Swagger UI", "Provides interactive UI and HTTP interface for operators to execute operational and querying workflows.")
+}
+
+System_Boundary(c1_boundary, "Aircraft & Maintenance Service Cluster") {
+    Container(am_inst1, "Aircraft & Maintenance Service (Instance 1)", "Java, Spring Boot [Port 8081]", "Manages aircraft models, physical aircraft fleet, operational status, and maintenance work orders/templates.")
+    Container(am_inst2, "Aircraft & Maintenance Service (Instance 2)", "Java, Spring Boot [Port 8082]", "Cloned replica for horizontal scalability, fault tolerance, and redundant fleet/maintenance management.")
+    Container(am_inst3, "Aircraft & Maintenance Service (Instance 3)", "Java, Spring Boot [Port 8083]", "Cloned replica forming a 3-node P2P mesh for resilient query forwarding.")
+    ContainerDb(am_db1, "H2 Database (Instance 1)", "H2 In-Memory DB (aircraft_maintenance_db_1)", "Stores aircraft models, aircraft fleet records, parts, and maintenance logs for Instance 1.")
+    ContainerDb(am_db2, "H2 Database (Instance 2)", "H2 In-Memory DB (aircraft_maintenance_db_2)", "Stores aircraft models, fleet records, parts, and maintenance logs for Instance 2.")
+    ContainerDb(am_db3, "H2 Database (Instance 3)", "H2 In-Memory DB (aircraft_maintenance_db_3)", "Stores aircraft models, fleet records, parts, and maintenance logs for Instance 3.")
+}
+
+System_Boundary(c2_boundary, "Airports & Routes Service Cluster") {
+    Container(ar_inst1, "Airports & Routes Service (Instance 1)", "Java, Spring Boot [Port 8091]", "Manages airport infrastructure, certifications, runways, geographic coordinates, and flight route histories.")
+    Container(ar_inst2, "Airports & Routes Service (Instance 2)", "Java, Spring Boot [Port 8092]", "Cloned replica for high availability and resilient airport/route resolution.")
+    ContainerDb(ar_db1, "H2 Database (Instance 1)", "H2 In-Memory DB (Port 8091)", "Stores airport registry, runway specs, and route definitions for Instance 1.")
+    ContainerDb(ar_db2, "H2 Database (Instance 2)", "H2 In-Memory DB (Port 8092)", "Stores airport registry, runway specs, and route definitions for Instance 2.")
+}
+
+System_Boundary(c3_boundary, "Flight Operations Service Cluster") {
+    Container(fo_inst1, "Flight Operations Service (Instance 1)", "Java, Spring Boot [Port 8071]", "Coordinates flight scheduling, real-time availability checks, and assigns aircraft to routes under range/capacity constraints.")
+    Container(fo_inst2, "Flight Operations Service (Instance 2)", "Java, Spring Boot [Port 8072]", "Cloned replica for scalable and fault-tolerant flight operation dispatching.")
+    ContainerDb(fo_db1, "H2 Database (Instance 1)", "H2 In-Memory DB (Port 8071)", "Stores scheduled flight operations, pilot assignments, and status logs for Instance 1.")
+    ContainerDb(fo_db2, "H2 Database (Instance 2)", "H2 In-Memory DB (Port 8072)", "Stores scheduled flight operations, pilot assignments, and status logs for Instance 2.")
+}
+
+' Client traffic to instances
+Rel(user, spa, "Interacts with", "HTTPS")
+Rel(spa, am_inst1, "Manages fleet & maintenance", "JSON / HTTP REST (8081)")
+Rel(spa, am_inst2, "Manages fleet & maintenance (Replica 2)", "JSON / HTTP REST (8082)")
+Rel(spa, am_inst3, "Manages fleet & maintenance (Replica 3)", "JSON / HTTP REST (8083)")
+Rel(spa, ar_inst1, "Manages airports & routes", "JSON / HTTP REST (8091)")
+Rel(spa, ar_inst2, "Manages airports & routes (Replica)", "JSON / HTTP REST (8092)")
+Rel(spa, fo_inst1, "Schedules flight operations", "JSON / HTTP REST (8071)")
+Rel(spa, fo_inst2, "Schedules flight operations (Replica)", "JSON / HTTP REST (8072)")
+
+' Intra-service database connections
+Rel(am_inst1, am_db1, "Reads & writes fleet data", "JDBC / JPA")
+Rel(am_inst2, am_db2, "Reads & writes fleet data", "JDBC / JPA")
+Rel(am_inst3, am_db3, "Reads & writes fleet data", "JDBC / JPA")
+Rel(ar_inst1, ar_db1, "Reads & writes airport data", "JDBC / JPA")
+Rel(ar_inst2, ar_db2, "Reads & writes airport data", "JDBC / JPA")
+Rel(fo_inst1, fo_db1, "Reads & writes flight data", "JDBC / JPA")
+Rel(fo_inst2, fo_db2, "Reads & writes flight data", "JDBC / JPA")
+
+' Intra-service P2P Forwarding (Unicast fallback)
+Rel_U(am_inst1, am_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel_D(am_inst2, am_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel_U(am_inst2, am_inst3, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel_D(am_inst3, am_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel_U(am_inst1, am_inst3, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel_D(am_inst3, am_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+
+Rel_U(ar_inst1, ar_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel_D(ar_inst2, ar_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+
+Rel_U(fo_inst1, fo_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel_D(fo_inst2, fo_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+
+' Inter-service collaboration
+Rel(fo_inst1, am_inst1, "Checks aircraft availability & operational status", "JSON / HTTP REST")
+Rel(fo_inst1, ar_inst1, "Validates airport runway length & route distance", "JSON / HTTP REST")
+Rel(am_inst1, fo_inst1, "Queries accumulated flight hours for maintenance alerts", "JSON / HTTP REST")
+Rel(am_inst1, ar_inst1, "Validates route minimum range & capacity specs", "JSON / HTTP REST")
+
+@enduml
