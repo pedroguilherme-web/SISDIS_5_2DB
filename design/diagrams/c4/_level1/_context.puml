@@ -14,7 +14,7 @@ Person(atcc, "Air Traffic Control Officer (ATCC)", "Monitors real-time aircraft 
 Person(technician, "Maintenance Technician / Supervisor", "Defines maintenance templates, schedules work orders, executes inspections/repairs, logs part replacements, and turnaround times.")
 
 System_Boundary(aisafe_system, "AISafe Flight Management System") {
-    System(aisafe, "AISafe Distributed Platform", "Decentralized, fault-tolerant flight management system providing segregated microservices for Aircraft & Maintenance, Airports & Routes, and Flight Operations with peer-to-peer data forwarding.")
+    System(aisafe, "AISafe Distributed Platform", "Decentralized, fault-tolerant flight management system providing segregated distributed components for Aircraft & Maintenance, Airports & Routes, and Flight Operations with peer-to-peer data forwarding.")
 }
 
 System_Ext(aviation_auth, "Civil Aviation Authority (CAA / ICAO)", "External authority providing standard aircraft certification norms, IATA/ICAO airport codes, and regulatory safety guidelines.")

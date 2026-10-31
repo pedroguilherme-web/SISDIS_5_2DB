@@ -9,9 +9,9 @@ LAYOUT_WITH_LEGEND()
 title Component Diagram - Aircraft & Maintenance Service (C4 Level 3)
 
 Container_Ext(spa, "Web Client / API Gateway", "React SPA / Postman", "Sends JSON/REST requests to manage aircraft and maintenance workflows.")
-Container_Ext(peer_instance, "Peer Replica Instance", "Spring Boot (Port 8082)", "Cloned peer instance hosting partitioned or replicated aircraft/maintenance data.")
+Container_Ext(peer_instance, "Peer Replica Instances", "Spring Boot (Ports 8082, 8083)", "Cloned peer replicas hosting partitioned or replicated aircraft/maintenance data.")
 Container_Ext(flight_service, "Flight Operations Service", "Spring Boot (Port 8071)", "Provides scheduled flight hours and aircraft assignment telemetry.")
-Container_Ext(route_service, "Airports & Routes Service", "Spring Boot (Port 8091)", "Provides route requirements, runway limitations, and distance calculations.")
+Container_Ext(route_service, "Airports & Routes Service", "Spring Boot (Port 8092)", "Provides route requirements, runway limitations, and distance calculations.")
 
 Container_Boundary(am_container, "Aircraft & Maintenance Service Container [Port 8081]") {
     
@@ -22,7 +22,7 @@ Container_Boundary(am_container, "Aircraft & Maintenance Service Container [Port
     Component(model_ctrl, "AircraftModelController", "Spring MVC REST Controller", "Exposes /api/aircraftModels/** for aircraft model specification catalog.")
     Component(maint_ctrl, "MaintenanceController", "Spring MVC REST Controller", "Exposes /api/maintenance/** for templates, work orders, parts inventory, and turnaround metrics.")
 
-    Component(forwarding_aspect, "PeerForwardingAspect", "Spring AOP (@Around)", "Intercepts HTTP GET requests. If a local NotFoundException occurs, forwards unicast HTTP GET to configured peer URLs with 'X-Peer-Forwarded' header.")
+    Component(forwarding_aspect, "PeerForwardingAspect", "Spring AOP (@Around)", "Intercepts HTTP GET requests. If a local NotFoundException occurs, forwards unicast HTTP GET to configured peer URLs (8082, 8083) with 'X-Peer-Forwarded' header.")
 
     Component(aircraft_usecases, "Aircraft Application Services", "Spring Use Cases", "Executes business logic for aircraft lifecycle: RegisterAircraft, UpdateStatus, ViewDetails, SearchFleet.")
     Component(maint_usecases, "Maintenance Application Services", "Spring Use Cases", "Executes maintenance logic: ScheduleMaintenance, CompleteWorkOrder, AlertMaintenanceDue, LogPartsUsed.")
