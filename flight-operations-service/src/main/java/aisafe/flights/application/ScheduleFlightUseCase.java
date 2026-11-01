@@ -1,9 +1,9 @@
 package aisafe.flights.application;
 
+import aisafe.flights.application.dtos.AircraftDTO;
 import aisafe.flights.application.dtos.FlightResponse;
+import aisafe.flights.application.dtos.RouteDTO;
 import aisafe.flights.application.dtos.ScheduleFlightRequest;
-import aisafe.flights.application.dtos.AircraftDTO; // Importação adicionada
-import aisafe.flights.application.dtos.RouteDTO;    // Importação adicionada
 import aisafe.flights.domain.AircraftIncompatibilityException;
 import aisafe.flights.domain.AircraftUnavailableException;
 import aisafe.flights.domain.FlightStatus;
@@ -11,6 +11,7 @@ import aisafe.flights.domain.ScheduledFlight;
 import aisafe.flights.domain.ScheduledFlightRepository;
 import aisafe.shared.application.UseCase;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
@@ -21,6 +22,12 @@ public class ScheduleFlightUseCase {
     private final ScheduledFlightRepository scheduledFlightRepository;
     private final RestTemplate restTemplate;
 
+    @Value("${services.routes.url:http://localhost:8091}")
+    private String routesServiceUrl;
+
+    @Value("${services.aircraft.url:http://localhost:8081}")
+    private String aircraftServiceUrl;
+
     public FlightResponse execute(ScheduleFlightRequest request) {
         String aircraftId = request.aircraftId().trim().toUpperCase();
         String origin = request.originIataCode().trim().toUpperCase();
@@ -29,7 +36,7 @@ public class ScheduleFlightUseCase {
         // 1. Pedido HTTP ao Airports & Routes Service (presumindo porta 8082)
         RouteDTO route;
         try {
-            String routeUrl = "http://localhost:8082/api/routes/search?origin=" + origin + "&destination=" + destination;
+            String routeUrl = routesServiceUrl + "/api/routes/search?origin=" + origin + "&destination=" + destination;
             route = restTemplate.getForObject(routeUrl, RouteDTO.class);
         } catch (HttpClientErrorException.NotFound e) {
             throw new RuntimeException("Route not found: " + origin + " -> " + destination);
@@ -38,20 +45,20 @@ public class ScheduleFlightUseCase {
         // 2. Pedido HTTP ao Aircraft & Maintenance Service (presumindo porta 8081)
         AircraftDTO aircraft;
         try {
-            String aircraftUrl = "http://localhost:8081/api/aircrafts/" + aircraftId;
+            String aircraftUrl = aircraftServiceUrl + "/api/aircrafts/" + aircraftId;
             aircraft = restTemplate.getForObject(aircraftUrl, AircraftDTO.class);
         } catch (HttpClientErrorException.NotFound e) {
             throw new RuntimeException("Aircraft not found: " + aircraftId);
         }
 
         // 3. Validações de Regras de Negócio (usando os dados recebidos via DTOs)
-        if ("UNDER_MAINTENANCE".equals(aircraft.status()) || "INACTIVE".equals(aircraft.status())) {
+        if (aircraft != null && ("UNDER_MAINTENANCE".equals(aircraft.status()) || "INACTIVE".equals(aircraft.status()))) {
             throw new AircraftUnavailableException(aircraftId);
         }
-        if (aircraft.seatCapacity() < route.minimumCapacity()) {
+        if (aircraft != null && route != null && aircraft.seatCapacity() < route.minimumCapacity()) {
             throw new AircraftIncompatibilityException("Aircraft capacity is less than the route minimum capacity.");
         }
-        if (aircraft.range() < route.minimumRange()) {
+        if (aircraft != null && route != null && aircraft.range() < route.minimumRange()) {
             throw new AircraftIncompatibilityException("Aircraft range is less than the route minimum range.");
         }
 

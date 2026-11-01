@@ -4,6 +4,7 @@ import aisafe.flights.application.dtos.FlightResponse;
 import aisafe.flights.domain.ScheduledFlightRepository;
 import aisafe.shared.application.UseCase;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
@@ -16,18 +17,19 @@ public class ViewScheduledFlightsByAircraftUseCase {
     private final ScheduledFlightRepository scheduledFlightRepository;
     private final RestTemplate restTemplate;
 
+    @Value("${services.aircraft.url:http://localhost:8081}")
+    private String aircraftServiceUrl;
+
     public List<FlightResponse> execute(String aircraftId) {
         String normalizedAircraftId = aircraftId.trim().toUpperCase();
 
-        // Verificar via HTTP se a aeronave existe no outro serviço
         try {
-            String aircraftUrl = "http://localhost:8081/api/aircrafts/" + normalizedAircraftId;
-            restTemplate.getForEntity(aircraftUrl, Void.class); // Só precisamos saber se devolve 200 OK
+            String aircraftUrl = aircraftServiceUrl + "/api/aircrafts/" + normalizedAircraftId;
+            restTemplate.getForEntity(aircraftUrl, Void.class);
         } catch (HttpClientErrorException.NotFound e) {
             throw new RuntimeException("Aircraft not found: " + normalizedAircraftId);
         }
 
-        // Se chegou aqui, a aeronave existe. Vamos buscar os voos à nossa base de dados.
         return scheduledFlightRepository.findByAircraftRegistration(normalizedAircraftId).stream()
                 .map(FlightResponse::from)
                 .toList();
