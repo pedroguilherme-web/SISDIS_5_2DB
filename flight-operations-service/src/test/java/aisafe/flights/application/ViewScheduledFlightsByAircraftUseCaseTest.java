@@ -7,6 +7,7 @@ import aisafe.flights.domain.ScheduledFlightRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
@@ -17,6 +18,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -37,14 +39,16 @@ class ViewScheduledFlightsByAircraftUseCaseTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void shouldThrowExceptionWhenAircraftNotFound() {
-        when(restTemplate.getForEntity(anyString(), eq(Void.class)))
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), any(Class.class)))
                 .thenThrow(HttpClientErrorException.NotFound.class);
 
         assertThrows(RuntimeException.class, () -> useCase.execute("UNKNOWN"));
     }
 
     @Test
+    @SuppressWarnings("unchecked")
     void shouldReturnFlightsSuccessfully() {
         String aircraftId = "CS-TKA";
         OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
@@ -52,7 +56,7 @@ class ViewScheduledFlightsByAircraftUseCaseTest {
 
         ScheduledFlight mockFlight = new ScheduledFlight(1L, departure, arrival, FlightStatus.SCHEDULED, "LIS", "OPO", aircraftId);
 
-        when(restTemplate.getForEntity(anyString(), eq(Void.class)))
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), any(Class.class)))
                 .thenReturn(ResponseEntity.ok().build());
         when(repository.findByAircraftRegistration(aircraftId))
                 .thenReturn(List.of(mockFlight));

@@ -8,6 +8,8 @@ import aisafe.flights.domain.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
@@ -41,7 +43,7 @@ class ScheduleFlightUseCaseTest {
     void shouldThrowExceptionWhenRouteNotFound() {
         ScheduleFlightRequest request = new ScheduleFlightRequest("CS-TKA", "XXX", "YYY", OffsetDateTime.now(), OffsetDateTime.now().plusHours(1));
 
-        when(restTemplate.getForObject(anyString(), eq(RouteDTO.class)))
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(RouteDTO.class)))
                 .thenThrow(HttpClientErrorException.NotFound.class);
 
         assertThrows(RuntimeException.class, () -> useCase.execute(request));
@@ -53,8 +55,10 @@ class ScheduleFlightUseCaseTest {
         RouteDTO route = new RouteDTO(100, 500);
         AircraftDTO aircraft = new AircraftDTO("UNDER_MAINTENANCE", 150, 3000);
 
-        when(restTemplate.getForObject(anyString(), eq(RouteDTO.class))).thenReturn(route);
-        when(restTemplate.getForObject(anyString(), eq(AircraftDTO.class))).thenReturn(aircraft);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(RouteDTO.class)))
+                .thenReturn(ResponseEntity.ok(route));
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(AircraftDTO.class)))
+                .thenReturn(ResponseEntity.ok(aircraft));
 
         assertThrows(AircraftUnavailableException.class, () -> useCase.execute(request));
     }
@@ -65,8 +69,10 @@ class ScheduleFlightUseCaseTest {
         RouteDTO route = new RouteDTO(200, 500); // Requer 200 lugares
         AircraftDTO aircraft = new AircraftDTO("AVAILABLE", 150, 3000); // Só tem 150
 
-        when(restTemplate.getForObject(anyString(), eq(RouteDTO.class))).thenReturn(route);
-        when(restTemplate.getForObject(anyString(), eq(AircraftDTO.class))).thenReturn(aircraft);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(RouteDTO.class)))
+                .thenReturn(ResponseEntity.ok(route));
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(AircraftDTO.class)))
+                .thenReturn(ResponseEntity.ok(aircraft));
 
         assertThrows(AircraftIncompatibilityException.class, () -> useCase.execute(request));
     }
@@ -82,8 +88,10 @@ class ScheduleFlightUseCaseTest {
 
         ScheduledFlight savedFlight = new ScheduledFlight(1L, departure, arrival, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TRP");
 
-        when(restTemplate.getForObject(anyString(), eq(RouteDTO.class))).thenReturn(route);
-        when(restTemplate.getForObject(anyString(), eq(AircraftDTO.class))).thenReturn(aircraft);
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(RouteDTO.class)))
+                .thenReturn(ResponseEntity.ok(route));
+        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), eq(AircraftDTO.class)))
+                .thenReturn(ResponseEntity.ok(aircraft));
         when(repository.existsByOverlappingSchedule(anyString(), any(), any())).thenReturn(false);
         when(repository.save(any(ScheduledFlight.class))).thenReturn(savedFlight);
 
