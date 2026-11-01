@@ -3,6 +3,7 @@ package aisafe.flights.application;
 import aisafe.flights.application.dtos.FlightResponse;
 import aisafe.flights.domain.ScheduledFlightRepository;
 import aisafe.shared.application.UseCase;
+import aisafe.shared.domain.ResourceNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -47,8 +48,9 @@ public class ViewScheduledFlightsByAircraftUseCase {
             HttpEntity<Void> entity = createAuthEntity();
             restTemplate.exchange(aircraftUrl, HttpMethod.GET, entity, Void.class);
         } catch (HttpClientErrorException.NotFound e) {
-            throw new RuntimeException("Aircraft not found: " + normalizedAircraftId);
+            throw new ResourceNotFoundException("Aircraft not found: " + normalizedAircraftId) {};
         } catch (HttpClientErrorException.Forbidden e) {
+            // Ignora se o perfil apenas tiver permissão de leitura de voos
         }
 
         return scheduledFlightRepository.findByAircraftRegistration(normalizedAircraftId).stream()
