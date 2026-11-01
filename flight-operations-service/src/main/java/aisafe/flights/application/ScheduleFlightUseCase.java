@@ -96,7 +96,7 @@ public class ScheduleFlightUseCase {
             String aircraftUrl = aircraftServiceUrl + "/api/aircrafts/" + aircraftId;
             ResponseEntity<AircraftDTO> response = restTemplate.exchange(
                     aircraftUrl, HttpMethod.GET, entity, AircraftDTO.class);
-            return response.getBody();
+            return response != null ? response.getBody() : null;
         } catch (HttpClientErrorException.NotFound e) {
             throw new ResourceNotFoundException("Aircraft not found: " + aircraftId) {};
         }
@@ -109,7 +109,7 @@ public class ScheduleFlightUseCase {
         try {
             ResponseEntity<RouteDTO> routeResponse = restTemplate.exchange(
                     searchUrl, HttpMethod.GET, entity, RouteDTO.class);
-            if (routeResponse.getBody() != null) {
+            if (routeResponse != null && routeResponse.getBody() != null) {
                 return routeResponse.getBody();
             }
         } catch (HttpClientErrorException.NotFound ignored) {
@@ -124,15 +124,16 @@ public class ScheduleFlightUseCase {
 
         return fetchRouteFromJsonTree(directUrl, origin, destination, entity);
     }
+
     private RouteDTO fetchRouteFromJsonTree(String routeUrl, String origin, String destination, HttpEntity<Void> entity) {
         try {
             ResponseEntity<String> rawResponse = restTemplate.exchange(
                     routeUrl, HttpMethod.GET, entity, String.class);
-            String body = rawResponse.getBody();
-            if (body == null || body.isBlank()) {
+            if (rawResponse == null || rawResponse.getBody() == null || rawResponse.getBody().isBlank()) {
                 throw new ResourceNotFoundException("Route not found: " + origin + " -> " + destination) {};
             }
 
+            String body = rawResponse.getBody();
             JsonNode root = objectMapper.readTree(body);
             JsonNode routeNode = extractFirstRouteNode(root);
             if (routeNode == null) {
