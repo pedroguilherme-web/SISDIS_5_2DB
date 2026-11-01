@@ -1,0 +1,212 @@
+{
+  "info": {
+    "_postman_id": "f4a8b912-3c7d-4e5a-9b1a-8d7e6f5c4b3a",
+    "name": "AISafe - Flight Operations Service (Distributed & P2P Tests)",
+    "description": "End-to-end distributed tests for Flight Operations Service (Ports 8071 & 8072), demonstrating authentication, inter-service collaboration, P2P HTTP GET forwarding, loop prevention, and security audit logging.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "instance1_url",
+      "value": "http://localhost:8071",
+      "type": "string"
+    },
+    {
+      "key": "instance2_url",
+      "value": "http://localhost:8072",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authenticate (Login as Admin on Instance 1)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "var jsonData = pm.response.json();",
+              "if (jsonData.token) {",
+              "    pm.collectionVariables.set(\"jwt_token\", jsonData.token);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{instance1_url}}/api/auth/login",
+          "host": ["{{instance1_url}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "2. Schedule Flight on Instance 1 (Inter-Service Collaboration)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"aircraftId\": \"CS-TKA\",\n  \"originIataCode\": \"LIS\",\n  \"destinationIataCode\": \"OPO\",\n  \"departureDateTime\": \"2026-11-15T10:00:00Z\",\n  \"arrivalDateTime\": \"2026-11-15T11:30:00Z\"\n}"
+        },
+        "url": {
+          "raw": "{{instance1_url}}/api/flights",
+          "host": ["{{instance1_url}}"],
+          "path": ["api", "flights"]
+        }
+      }
+    },
+    {
+      "name": "3. Get Flights by Aircraft on Instance 1 (Local Hit)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{instance1_url}}/api/flights?aircraftId=CS-TKA",
+          "host": ["{{instance1_url}}"],
+          "path": ["api", "flights"],
+          "query": [
+            {
+              "key": "aircraftId",
+              "value": "CS-TKA"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Get Flights by Aircraft on Instance 2 (P2P Forwarding from Instance 1)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{instance2_url}}/api/flights?aircraftId=CS-TKA",
+          "host": ["{{instance2_url}}"],
+          "path": ["api", "flights"],
+          "query": [
+            {
+              "key": "aircraftId",
+              "value": "CS-TKA"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Get Flights for Non-Existent Aircraft (Global 404 & Loop Prevention)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{instance1_url}}/api/flights?aircraftId=CS-NONE",
+          "host": ["{{instance1_url}}"],
+          "path": ["api", "flights"],
+          "query": [
+            {
+              "key": "aircraftId",
+              "value": "CS-NONE"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. Flight Utilization Report",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{instance1_url}}/api/flights/reports/utilization?page=0&size=20",
+          "host": ["{{instance1_url}}"],
+          "path": ["api", "flights", "reports", "utilization"],
+          "query": [
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
