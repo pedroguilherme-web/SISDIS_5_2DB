@@ -1,8 +1,6 @@
 package aisafe.flights.infrastructure.persistence.jpa;
 
-import aisafe.aircrafts.infrastructure.persistence.jpa.AircraftJpaEntity;
 import aisafe.flights.domain.FlightStatus;
-import aisafe.routes.infrastructure.persistence.jpa.RouteJpaEntity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -29,25 +27,29 @@ public class ScheduledFlightJpaEntity {
     @Column(nullable = false)
     private FlightStatus status;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.MERGE)
-    @JoinColumn(name = "route_id", nullable = false)
-    private RouteJpaEntity route;
+    // Em vez de RouteJpaEntity, guardamos apenas os códigos (Strings)
+    @Column(nullable = false)
+    private String originCode;
 
-    @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.MERGE)
-    @JoinColumn(name = "aircraft_id", nullable = false)
-    private AircraftJpaEntity aircraft;
+    @Column(nullable = false)
+    private String destinationCode;
+
+    // Em vez de AircraftJpaEntity, guardamos apenas a matrícula (String)
+    @Column(nullable = false)
+    private String aircraftRegistrationNumber;
 
     @Version
     private Long version;
 
     public ScheduledFlightJpaEntity() {}
 
-    public ScheduledFlightJpaEntity(OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime, 
-                                   FlightStatus status, RouteJpaEntity route, AircraftJpaEntity aircraft) {
+    public ScheduledFlightJpaEntity(OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime,
+                                    FlightStatus status, String originCode, String destinationCode, String aircraftRegistrationNumber) {
         this.departureDateTime = departureDateTime;
         this.arrivalDateTime = arrivalDateTime;
         this.status = status;
-        this.route = route;
-        this.aircraft = aircraft;
+        this.originCode = originCode;
+        this.destinationCode = destinationCode;
+        this.aircraftRegistrationNumber = aircraftRegistrationNumber;
     }
 }

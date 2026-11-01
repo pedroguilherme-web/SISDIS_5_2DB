@@ -15,7 +15,6 @@ import aisafe.routes.infrastructure.persistence.jpa.RouteJpaEntity;
 import aisafe.routes.infrastructure.persistence.jpa.SpringDataRouteRepository;
 import aisafe.aircrafts.domain.Manufacturer;
 import aisafe.airports.domain.IataCode;
-import aisafe.shared.domain.PaginatedResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import java.lang.reflect.Constructor;

@@ -1,0 +1,50 @@
+@startuml _components_flight_operations
+!include <C4/C4_Component>
+
+LAYOUT_WITH_LEGEND()
+
+title Component Diagram - Flight Operations Service (C4 Level 3)
+
+Container_Ext(spa, "Web Client / API Gateway", "React SPA / Postman", "Sends JSON/REST requests to manage flight operations.")
+Container_Ext(peer_instance, "Peer Replica Instances", "Spring Boot (Port 8072)", "Cloned peer replicas hosting partitioned flight schedules.")
+Container_Ext(aircraft_service, "Aircraft & Maintenance Service", "Spring Boot (Port 8081)", "Provides aircraft telemetry and operational availability.")
+Container_Ext(route_service, "Airports & Routes Service", "Spring Boot (Port 8091)", "Provides airport capacities, runways, and route distances.")
+
+Container_Boundary(fo_container, "Flight Operations Service Container [Port 8071]") {
+
+    Component(security_filter, "Security & Auth Filter", "Spring Security / JWT", "Intercepts inbound HTTP requests and verifies Bearer JWT tokens (from shared-core).")
+
+    Component(flight_ctrl, "FlightController", "Spring MVC REST Controller", "Exposes /api/flights/** for scheduling and querying flights.")
+
+    Component(forwarding_aspect, "PeerForwardingAspect", "Spring AOP (@Around)", "Intercepts HTTP GET requests. If a local miss occurs, forwards unicast HTTP GET to configured peer URLs (8072).")
+
+    Component(flight_usecases, "Flight Application Services", "Spring Use Cases", "Executes business logic: ScheduleFlightUseCase, ViewScheduledFlightsByAircraftUseCase.")
+
+    Component(rest_template, "Shared RestTemplate", "Spring RestClient", "HTTP client configured in shared-core with JWT propagation to call external services.")
+
+    Component(flight_repo, "ScheduledFlight Repository", "Spring Data JPA", "Manages persistence for ScheduledFlight entities.")
+
+    Component(audit_aspect, "UseCaseLoggingAdvice", "Spring AOP", "Intercepts Use Cases to log actions into the Audit Log (from shared-core).")
+
+    Component(ex_handler, "GlobalExceptionHandler", "Spring @ControllerAdvice", "Translates domain exceptions into REST JSON errors (from shared-core).")
+
+    ContainerDb(local_db, "Local H2 Database", "H2 In-Memory (flight_operations_db_1)", "Stores scheduled flights and operational telemetry.")
+}
+
+Rel(spa, security_filter, "Sends REST requests", "JSON / HTTPS")
+Rel(security_filter, flight_ctrl, "Routes valid calls", "Java Method")
+
+Rel(forwarding_aspect, flight_ctrl, "Intercepts GET execution on local miss", "AOP JoinPoint")
+Rel(forwarding_aspect, peer_instance, "Unicast HTTP GET forward (X-Peer-Forwarded: true)", "HTTP GET")
+
+Rel(flight_ctrl, flight_usecases, "Invokes", "Java Call")
+Rel(flight_usecases, rest_template, "Uses for inter-service validation", "Java Call")
+
+Rel(rest_template, aircraft_service, "Fetches aircraft availability", "JSON / HTTP REST")
+Rel(rest_template, route_service, "Fetches route definitions", "JSON / HTTP REST")
+
+Rel(flight_usecases, flight_repo, "Queries / persists flights", "Spring Data JPA")
+Rel(flight_repo, local_db, "Reads / writes flight tables", "JDBC / SQL")
+
+Rel(audit_aspect, flight_usecases, "Intercepts for audit logging", "AOP Advice")
+@enduml

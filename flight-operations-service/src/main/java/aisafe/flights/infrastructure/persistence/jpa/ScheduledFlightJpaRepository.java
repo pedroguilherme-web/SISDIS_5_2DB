@@ -1,44 +1,29 @@
 package aisafe.flights.infrastructure.persistence.jpa;
 
-import aisafe.aircrafts.domain.AircraftNotFoundException;
-import aisafe.airports.domain.IataCode;
-import aisafe.aircrafts.domain.RegistrationNumber;
-import aisafe.aircrafts.infrastructure.persistence.jpa.AircraftJpaEntity;
-import aisafe.aircrafts.infrastructure.persistence.jpa.SpringDataAircraftRepository;
 import aisafe.flights.domain.RouteUtilizationData;
-import aisafe.routes.domain.RouteNotFoundException;
 import aisafe.flights.domain.ModelUtilizationData;
 import aisafe.flights.domain.ScheduledFlight;
 import aisafe.flights.domain.ScheduledFlightRepository;
-import aisafe.routes.infrastructure.persistence.jpa.RouteJpaEntity;
-import aisafe.routes.infrastructure.persistence.jpa.SpringDataRouteRepository;
 import aisafe.shared.domain.PaginatedResult;
 import org.springframework.stereotype.Repository;
+import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import aisafe.aircrafts.infrastructure.persistence.jpa.RegistrationNumberJpaEmbeddable;
-import org.springframework.context.annotation.Profile;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-
 @Repository
 @Profile("jpa")
 public class ScheduledFlightJpaRepository implements ScheduledFlightRepository {
 
     private final SpringDataScheduledFlightRepository springRepo;
-    private final SpringDataAircraftRepository aircraftRepo;
-    private final SpringDataRouteRepository routeRepo;
 
-    public ScheduledFlightJpaRepository(SpringDataScheduledFlightRepository springRepo,
-                                        SpringDataAircraftRepository aircraftRepo,
-                                        SpringDataRouteRepository routeRepo) {
+    // Repositórios de Aircraft e Route removidos (desacoplamento concluído!)
+    public ScheduledFlightJpaRepository(SpringDataScheduledFlightRepository springRepo) {
         this.springRepo = springRepo;
-        this.aircraftRepo = aircraftRepo;
-        this.routeRepo = routeRepo;
     }
 
     @Override
@@ -57,21 +42,14 @@ public class ScheduledFlightJpaRepository implements ScheduledFlightRepository {
 
     @Override
     public ScheduledFlight save(ScheduledFlight flight) {
-        AircraftJpaEntity aircraftEntity = aircraftRepo.findByRegistrationNumber(new RegistrationNumberJpaEmbeddable(flight.getAircraftRegistrationNumber().getNumber()))
-                .orElseThrow(() -> new AircraftNotFoundException("Aircraft not found for scheduled flight"));
-
-        RouteJpaEntity routeEntity = routeRepo.findByOriginCode_CodeOrDestinationCode_Code(flight.getOriginCode().getCode(), flight.getDestinationCode().getCode())
-                .stream()
-                .filter(r -> r.getOriginCode().getCode().equals(flight.getOriginCode().getCode()) && r.getDestinationCode().getCode().equals(flight.getDestinationCode().getCode()))
-                .findFirst()
-                .orElseThrow(() -> new RouteNotFoundException("Route not found for scheduled flight"));
-
+        // Já não precisas de ir buscar o RouteEntity ou AircraftEntity!
         ScheduledFlightJpaEntity entity = new ScheduledFlightJpaEntity(
                 flight.getDepartureDateTime(),
                 flight.getArrivalDateTime(),
                 flight.getStatus(),
-                routeEntity,
-                aircraftEntity
+                flight.getOriginCode(),
+                flight.getDestinationCode(),
+                flight.getAircraftRegistrationNumber()
         );
         entity.setId(flight.getId());
 
@@ -98,9 +76,10 @@ public class ScheduledFlightJpaRepository implements ScheduledFlightRepository {
                 .collect(Collectors.toList());
     }
 
+    // Assinaturas adaptadas para receber String em vez de Value Objects
     @Override
-    public List<ScheduledFlight> findByAircraftRegistration(RegistrationNumber registration) {
-        return springRepo.findByAircraftRegistration(registration.getNumber()).stream()
+    public List<ScheduledFlight> findByAircraftRegistration(String registration) {
+        return springRepo.findByAircraftRegistration(registration).stream()
                 .map(ScheduledFlightMapper::toDomain)
                 .collect(Collectors.toList());
     }
@@ -111,35 +90,35 @@ public class ScheduledFlightJpaRepository implements ScheduledFlightRepository {
     }
 
     @Override
-    public List<ScheduledFlight> findFlightsForUtilization(RegistrationNumber registration, OffsetDateTime start, OffsetDateTime end) {
-        return springRepo.findFlightsForUtilization(registration.getNumber(), start, end).stream()
+    public List<ScheduledFlight> findFlightsForUtilization(String registration, OffsetDateTime start, OffsetDateTime end) {
+        return springRepo.findFlightsForUtilization(registration, start, end).stream()
                 .map(ScheduledFlightMapper::toDomain)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public boolean existsByOverlappingSchedule(RegistrationNumber registration, OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime) {
-        return springRepo.hasOverlappingFlights(registration.getNumber(), departureDateTime, arrivalDateTime);
+    public boolean existsByOverlappingSchedule(String registration, OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime) {
+        return springRepo.hasOverlappingFlights(registration, departureDateTime, arrivalDateTime);
     }
 
     @Override
-    public boolean existsByAircraftRegistration(RegistrationNumber registration) {
-        return springRepo.existsByAircraftRegistrationNumberNumber(registration.getNumber());
+    public boolean existsByAircraftRegistration(String registration) {
+        return springRepo.existsByAircraftRegistrationNumber(registration);
     }
 
     @Override
-    public long countByRoute(IataCode origin, IataCode destination) {
-        return springRepo.countByRoute(origin.getCode(), destination.getCode());
+    public long countByRoute(String origin, String destination) {
+        return springRepo.countByRoute(origin, destination);
     }
 
     @Override
-    public Double calculateTotalOperationalHoursByRegistration(RegistrationNumber registration) {
-        return springRepo.calculateTotalOperationalHoursByRegistration(registration.getNumber());
+    public Double calculateTotalOperationalHoursByRegistration(String registration) {
+        return springRepo.calculateTotalOperationalHoursByRegistration(registration);
     }
 
     @Override
-    public Double calculateOperationalHoursSince(RegistrationNumber registration, OffsetDateTime sinceDate) {
-        return springRepo.calculateOperationalHoursSince(registration.getNumber(), sinceDate);
+    public Double calculateOperationalHoursSince(String registration, OffsetDateTime sinceDate) {
+        return springRepo.calculateOperationalHoursSince(registration, sinceDate);
     }
 
     @Override
