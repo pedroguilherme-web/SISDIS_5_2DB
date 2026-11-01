@@ -49,8 +49,6 @@ public class ViewScheduledFlightsByAircraftUseCase {
         } catch (HttpClientErrorException.NotFound e) {
             throw new RuntimeException("Aircraft not found: " + normalizedAircraftId);
         } catch (HttpClientErrorException.Forbidden e) {
-            // Fallback defensivo: se houver conflito de permissão entre tokens/bases de dados isoladas,
-            // permitimos prosseguir para consultar os voos locais e o mecanismo P2P.
         }
 
         return scheduledFlightRepository.findByAircraftRegistration(normalizedAircraftId).stream()

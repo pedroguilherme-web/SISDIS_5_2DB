@@ -8,9 +8,9 @@ public class ScheduledFlight {
     private OffsetDateTime departureDateTime;
     private OffsetDateTime arrivalDateTime;
     private FlightStatus status;
-    private String originCode; // Alterado de IataCode
-    private String destinationCode; // Alterado de IataCode
-    private String aircraftRegistrationNumber; // Alterado de RegistrationNumber
+    private String originCode;
+    private String destinationCode;
+    private String aircraftRegistrationNumber;
 
     public ScheduledFlight(OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime,
                            FlightStatus status, String originCode, String destinationCode,

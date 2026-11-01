@@ -7,7 +7,6 @@ class RouteUtilizationProjectionTest {
 
     @Test
     void shouldReturnCorrectValuesFromProjection() {
-        // Criar uma implementação anónima da interface
         RouteUtilizationProjection projection = new RouteUtilizationProjection() {
             @Override
             public Long getRouteId() { return 10L; }

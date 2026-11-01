@@ -10,7 +10,6 @@ import java.util.Optional;
 public interface ScheduledFlightRepository extends BaseRepository<ScheduledFlight> {
     Optional<ScheduledFlight> findById(Long id);
 
-    // Substituído RegistrationNumber por String
     List<ScheduledFlight> findByAircraftRegistration(String registration);
 
     List<ScheduledFlight> findFlightsForUtilization(String registration, OffsetDateTime start, OffsetDateTime end);
@@ -19,7 +18,6 @@ public interface ScheduledFlightRepository extends BaseRepository<ScheduledFligh
 
     boolean existsByAircraftRegistration(String registration);
 
-    // Substituído IataCode por String
     long countByRoute(String origin, String destination);
 
     List<ModelUtilizationData> findTopModelsByFlightHours(int limit);

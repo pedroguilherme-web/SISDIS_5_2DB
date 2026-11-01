@@ -24,7 +24,6 @@ public class HttpClientConfig {
 
         RestTemplate restTemplate = new RestTemplate(requestFactory);
 
-        // Propaga o cabeçalho Authorization (JWT) nos pedidos entre microsserviços
         restTemplate.getInterceptors().add((request, body, execution) -> {
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null) {

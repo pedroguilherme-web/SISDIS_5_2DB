@@ -55,7 +55,6 @@ public class ScheduleFlightUseCase {
 
         HttpEntity<Void> entity = createAuthEntity();
 
-        // 1. Pedido HTTP ao Airports & Routes Service (com propagação de JWT)
         RouteDTO route;
         try {
             String routeUrl = routesServiceUrl + "/api/routes/search?origin=" + origin + "&destination=" + destination;
@@ -65,7 +64,6 @@ public class ScheduleFlightUseCase {
             throw new RuntimeException("Route not found: " + origin + " -> " + destination);
         }
 
-        // 2. Pedido HTTP ao Aircraft & Maintenance Service (com propagação de JWT)
         AircraftDTO aircraft;
         try {
             String aircraftUrl = aircraftServiceUrl + "/api/aircrafts/" + aircraftId;
@@ -75,7 +73,6 @@ public class ScheduleFlightUseCase {
             throw new RuntimeException("Aircraft not found: " + aircraftId);
         }
 
-        // 3. Validações de Regras de Negócio (usando os dados recebidos via DTOs)
         if (aircraft != null && ("UNDER_MAINTENANCE".equals(aircraft.status()) || "INACTIVE".equals(aircraft.status()))) {
             throw new AircraftUnavailableException(aircraftId);
         }
@@ -86,12 +83,10 @@ public class ScheduleFlightUseCase {
             throw new AircraftIncompatibilityException("Aircraft range is less than the route minimum range.");
         }
 
-        // 4. Validação de sobreposição de horários (Local - o teu serviço é dono disto)
         if (scheduledFlightRepository.existsByOverlappingSchedule(aircraftId, request.departureDateTime(), request.arrivalDateTime())) {
             throw new AircraftUnavailableException(aircraftId);
         }
 
-        // 5. Guardar o voo
         ScheduledFlight scheduledFlight = new ScheduledFlight(
                 request.departureDateTime(),
                 request.arrivalDateTime(),

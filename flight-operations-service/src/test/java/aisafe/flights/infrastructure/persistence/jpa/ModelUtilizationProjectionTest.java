@@ -7,7 +7,6 @@ class ModelUtilizationProjectionTest {
 
     @Test
     void shouldReturnCorrectValuesFromProjection() {
-        // Criar uma implementação anónima da interface para a testar
         ModelUtilizationProjection projection = new ModelUtilizationProjection() {
             @Override
             public String getModelName() {
