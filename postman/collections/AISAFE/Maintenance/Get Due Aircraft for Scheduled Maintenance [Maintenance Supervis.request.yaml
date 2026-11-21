@@ -1,0 +1,12 @@
+$kind: http-request
+name: Get Due Aircraft for Scheduled Maintenance [Maintenance Supervisor]
+url: "{{base_url}}/api/maintenance/records/due"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      const body = pm.response.json();
+      pm.test("Is paginated response", () => { pm.expect(body.page).to.exist; });
+    language: text/javascript
+order: 7000

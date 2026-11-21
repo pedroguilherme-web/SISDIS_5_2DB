@@ -5,6 +5,7 @@ import aisafe.airports.domain.AirportNotFoundException;
 import aisafe.airports.domain.AirportRepository;
 import aisafe.airports.domain.IataCode;
 import aisafe.airports.domain.Runway;
+import aisafe.airports.infrastructure.messaging.AirportEventPublisher;
 import aisafe.routes.domain.Route;
 import aisafe.routes.domain.RouteRepository;
 import aisafe.shared.domain.ResourceInUseException;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.Optional;
 
+import static org.mockito.ArgumentMatchers.eq;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -47,6 +49,27 @@ class DeleteAirportUseCaseTest {
 
         assertDoesNotThrow(() -> deleteAirport.execute("LIS"));
         verify(airportRepository).delete(any(Airport.class));
+    }
+
+    @Test
+    void publishesDeleteEventAfterRemovingAirportFromCommandModel() {
+        Airport airport = buildAirport("LIS");
+        AirportEventPublisher publisher = mock(AirportEventPublisher.class);
+        DeleteAirportUseCase useCase = new DeleteAirportUseCase(
+                airportRepository,
+                routeRepository,
+                Optional.of(publisher));
+        when(airportRepository.findByIataCode(new IataCode("LIS"))).thenReturn(Optional.of(airport));
+        when(routeRepository.findByOriginOrDestination(any(), any())).thenReturn(List.of());
+        org.mockito.InOrder order = inOrder(airportRepository, publisher);
+
+        useCase.execute("LIS");
+
+        order.verify(airportRepository).delete(airport);
+        order.verify(publisher).publish(
+                org.mockito.ArgumentMatchers.argThat(response ->
+                        response.iataCode().equals("LIS")),
+                eq("AirportDeleted"));
     }
 
     @Test

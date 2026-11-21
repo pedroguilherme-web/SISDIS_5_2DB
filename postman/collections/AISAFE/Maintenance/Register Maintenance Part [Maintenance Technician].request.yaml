@@ -1,0 +1,27 @@
+$kind: http-request
+url: "{{base_url}}/api/maintenance/parts"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"partNumber\": \"ENG-002\",\r
+
+    \    \"name\": \"Engine Oil Filter\",\r
+
+    \    \"description\": \"High-performance oil filter for jet engines\",\r
+
+    \    \"stockQuantity\": 9,\r
+
+    \    \"minimumThreshold\": 10,\r
+
+    \    \"component\": \"ENGINE\"\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      pm.test("Has part number", () => pm.expect(pm.response.json().partNumber).to.be.a('string'));
+    language: text/javascript
+order: 2000

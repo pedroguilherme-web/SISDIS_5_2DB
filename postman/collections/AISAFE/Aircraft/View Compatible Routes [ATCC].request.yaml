@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{base_url}}/api/aircrafts/{{aircraft_registration}}/compatible-routes"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      var body = pm.response.json();
+      pm.test("Returns HAL collection", () => {
+          pm.expect(body._embedded).to.exist;
+          pm.expect(body._links).to.exist;
+      });
+      var items = Object.values(body._embedded)[0];
+      if (items && items.length > 0) {
+          pm.test("Each item has origin and destination", () => {
+              pm.expect(items[0].originIataCode).to.be.a('string');
+              pm.expect(items[0].destinationIataCode).to.be.a('string');
+          });
+      }
+    language: text/javascript
+order: 6000

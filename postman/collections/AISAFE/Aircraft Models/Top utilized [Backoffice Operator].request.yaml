@@ -1,0 +1,24 @@
+$kind: http-request
+url: "{{base_url}}/api/aircraftModels/top-utilized?criteria=HOURS"
+method: GET
+queryParams:
+  criteria: HOURS
+body:
+  type: text
+  content: ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      var body = pm.response.json();
+      pm.test("Returns HAL collection", () => {
+          pm.expect(body._embedded).to.exist;
+          pm.expect(body._links).to.exist;
+      });
+      var items = Object.values(body._embedded)[0];
+      if (items && items.length > 0) {
+          pm.test("Each item has modelName", () => pm.expect(items[0].modelName).to.exist);
+      }
+    language: text/javascript
+settings: {}
+order: 7000

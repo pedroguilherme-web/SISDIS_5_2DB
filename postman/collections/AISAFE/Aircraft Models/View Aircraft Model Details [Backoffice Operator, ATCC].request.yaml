@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/aircraftModels/{{aircraft_model_name}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Has model name", () => pm.expect(pm.response.json().modelName).to.exist);
+    language: text/javascript
+order: 3000

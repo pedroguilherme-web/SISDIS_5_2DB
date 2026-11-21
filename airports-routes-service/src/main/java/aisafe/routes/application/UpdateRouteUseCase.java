@@ -11,8 +11,11 @@ import aisafe.routes.domain.RouteNotFoundException;
 import aisafe.routes.domain.RouteRepository;
 import aisafe.routes.domain.RouteStatus;
 import aisafe.shared.domain.ConcurrencyException;
+import aisafe.routes.infrastructure.messaging.RouteEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Use case responsible for updating the details of an existing route.
@@ -22,10 +25,20 @@ public class UpdateRouteUseCase {
 
     private final RouteRepository routeRepository;
     private final RouteHistoryRepository routeHistoryRepository;
+    private final Optional<RouteEventPublisher> eventPublisher;
 
     public UpdateRouteUseCase(RouteRepository routeRepository, RouteHistoryRepository routeHistoryRepository) {
+        this(routeRepository, routeHistoryRepository, Optional.empty());
+    }
+
+    @Autowired
+    public UpdateRouteUseCase(
+            RouteRepository routeRepository,
+            RouteHistoryRepository routeHistoryRepository,
+            Optional<RouteEventPublisher> eventPublisher) {
         this.routeRepository = routeRepository;
         this.routeHistoryRepository = routeHistoryRepository;
+        this.eventPublisher = eventPublisher == null ? Optional.empty() : eventPublisher;
     }
 
     /**
@@ -63,6 +76,8 @@ public class UpdateRouteUseCase {
         routeHistoryRepository.save(new RouteHistory(new IataCode(origin), new IataCode(destination), "Route details updated", changedBy));
 
         Long updatedVersion = routeRepository.findVersionFor(new IataCode(origin), new IataCode(destination));
-        return RouteResponse.from(route, updatedVersion);
+        RouteResponse response = RouteResponse.from(route, updatedVersion);
+        eventPublisher.ifPresent(publisher -> publisher.publish(response, "RouteUpdated"));
+        return response;
     }
 }

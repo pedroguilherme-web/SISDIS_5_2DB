@@ -1,0 +1,25 @@
+$kind: http-request
+url: "{{base_url}}/api/auth/register"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"username\": \"{{new_username}}\",\r
+
+    \    \"password\": \"{{new_password}}\",\r
+
+    \    \"role\": \"{{new_role}}\"\r
+
+    }"
+auth:
+  type: bearer
+  credentials:
+    token: "{{jwt_token}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      pm.test("Token received", () => pm.expect(pm.response.json().token).to.be.a('string'));
+    language: text/javascript
+order: 1000

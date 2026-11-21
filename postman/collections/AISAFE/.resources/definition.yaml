@@ -1,0 +1,44 @@
+$kind: collection
+description: ""
+variables:
+  base_url: http://localhost:8080
+  jwt_token: ""
+  bootstrap_admin_username: ""
+  bootstrap_admin_password: ""
+  new_username: ""
+  new_password: ""
+  new_role: BACKOFFICE_OPERATOR
+  backoffice_username: ""
+  backoffice_password: ""
+  atcc_username: ""
+  atcc_password: ""
+  technician_username: ""
+  technician_password: ""
+  supervisor_username: ""
+  supervisor_password: ""
+  aircraft_model_name: Boeing 737 MAX2
+  aircraft_version: "0"
+  aircraft_registration: CS-TKA
+  airport_iata: OPO
+  route_origin: OPO
+  route_destination: LIS
+  route_version: "0"
+  maintenance_record_id: ""
+  maintenance_record_version: "0"
+  maintenance_part_number: ST-1001
+  maintenance_template_name: Inspection to the starter motor
+  airport_version: "0"
+scripts:
+  - type: http:beforeRequest
+    code: |-
+      var token = pm.collectionVariables.get('jwt_token');
+      if (token) {
+          pm.request.headers.upsert({ key: 'Authorization', value: 'Bearer ' + token });
+      }
+    language: text/javascript
+auth:
+  - id: de55e9a5-7c0f-4bb5-adfe-06ca0385a8a0
+    type: bearer
+    name: bearer auth
+    credentials:
+      token: "{{jwt_token}}"

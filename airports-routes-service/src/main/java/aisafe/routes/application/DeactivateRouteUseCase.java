@@ -10,18 +10,31 @@ import aisafe.routes.domain.RouteNotFoundException;
 import aisafe.routes.domain.RouteRepository;
 import aisafe.routes.domain.RouteStatus;
 import aisafe.shared.domain.ConcurrencyException;
+import aisafe.routes.infrastructure.messaging.RouteEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Objects;
+import java.util.Optional;
 
 @UseCase
 public class DeactivateRouteUseCase {
 
     private final RouteRepository routeRepository;
     private final RouteHistoryRepository routeHistoryRepository;
+    private final Optional<RouteEventPublisher> eventPublisher;
 
     public DeactivateRouteUseCase(RouteRepository routeRepository, RouteHistoryRepository routeHistoryRepository) {
+        this(routeRepository, routeHistoryRepository, Optional.empty());
+    }
+
+    @Autowired
+    public DeactivateRouteUseCase(
+            RouteRepository routeRepository,
+            RouteHistoryRepository routeHistoryRepository,
+            Optional<RouteEventPublisher> eventPublisher) {
         this.routeRepository = routeRepository;
         this.routeHistoryRepository = routeHistoryRepository;
+        this.eventPublisher = eventPublisher == null ? Optional.empty() : eventPublisher;
     }
 
     public RouteResponse execute(String origin, String destination, Long clientVersion, String changedBy) {
@@ -40,6 +53,8 @@ public class DeactivateRouteUseCase {
         routeHistoryRepository.save(new RouteHistory(new IataCode(origin), new IataCode(destination), "Route deactivated", changedBy));
         
         Long updatedVersion = routeRepository.findVersionFor(new IataCode(origin), new IataCode(destination));
-        return RouteResponse.from(route, updatedVersion);
+        RouteResponse response = RouteResponse.from(route, updatedVersion);
+        eventPublisher.ifPresent(publisher -> publisher.publish(response, "RouteDeactivated"));
+        return response;
     }
 }

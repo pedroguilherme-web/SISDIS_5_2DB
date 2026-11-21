@@ -1,0 +1,20 @@
+$kind: http-request
+url: "{{base_url}}/api/flights"
+method: POST
+body:
+  type: json
+  content: |-
+    {
+        "aircraftId": "{{aircraft_registration}}",
+        "originIataCode": "{{route_origin}}",
+        "destinationIataCode": "{{route_destination}}",
+        "departureDateTime": "2026-07-01T08:00:00Z",
+        "arrivalDateTime": "2026-07-01T09:00:00Z"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      pm.test("Has departure time", () => pm.expect(pm.response.json().departureDateTime).to.exist);
+    language: text/javascript
+order: 1000

@@ -12,10 +12,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "security.p2p.jwt.secret=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "security.p2p.jwt.secret=dGVzdC1wMnAtc2VjcmV0LXdpdGgtMzItYnl0ZXMtbWluaW11bQ==",
         "security.p2p.jwt.expiration-ms=300000",
         "p2p.peer-id=peer-test"
 
@@ -62,5 +63,12 @@ class P2PSecurityIntegrationTest {
                                 }
                                 """))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldRejectInvalidUserJwt() throws Exception {
+        mockMvc.perform(get("/api/v1/airports/LIS")
+                .header("Authorization", "Bearer invalid.jwt.token"))
+                .andExpect(status().isUnauthorized());
     }
 }

@@ -17,16 +17,17 @@ public class PeerClient {
     private PeerIdentity peerIdentity;
 
     public PeerClient() {
+        org.springframework.http.client.JdkClientHttpRequestFactory
+                requestFactory =
+                new org.springframework.http.client.JdkClientHttpRequestFactory(
+                        java.net.http.HttpClient.newBuilder()
+                                .connectTimeout(Duration.ofSeconds(3))
+                                .build()
+                );
+        requestFactory.setReadTimeout(Duration.ofSeconds(5));
 
         this.restClient = RestClient.builder()
-                .requestFactory(
-                        new org.springframework.http.client
-                                .JdkClientHttpRequestFactory(
-                                java.net.http.HttpClient.newBuilder()
-                                        .connectTimeout(Duration.ofSeconds(3))
-                                        .build()
-                        )
-                )
+                .requestFactory(requestFactory)
                 .build();
     }
 

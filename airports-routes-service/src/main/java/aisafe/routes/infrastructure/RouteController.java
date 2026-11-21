@@ -40,7 +40,7 @@ import aisafe.shared.infrastructure.ETagUtils;
 import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
-@RequestMapping("/api/routes")
+@RequestMapping({"/api/routes", "/api/v1/routes"})
 @Tag(name = "Routes", description = "Flight Routes Management - WP#3")
 public class RouteController {
 

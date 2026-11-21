@@ -1,0 +1,31 @@
+$kind: http-request
+url: "{{base_url}}/api/aircraftModels"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"modelName\": \"Boeing 737 MAX2\",\r
+
+    \    \"manufacturer\": \"BOEING\",\r
+
+    \    \"fuelCapacity\": 25941.0,\r
+
+    \    \"maxRange\": 6570.0,\r
+
+    \    \"cruisingSpeed\": 839.0,\r
+
+    \    \"maximumSeatingCapacity\": 230\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      var jsonData = pm.response.json();
+      pm.test("Model has name", () => pm.expect(jsonData.modelName).to.be.a('string'));
+      if (jsonData.modelName) {
+          pm.collectionVariables.set("aircraft_model_name", jsonData.modelName);
+      }
+    language: text/javascript
+order: 1000

@@ -1,5 +1,12 @@
 # Transição de Arquitetura &amp; Divisão de Trabalho — AISafe Flight Management System
 
+## Enunciado do P2
+
+O enunciado do próximo projeto está disponível em [`SISDIS-2026-2027-P2.pdf`](SISDIS-2026-2027-P2.pdf).
+O incremento P2 do serviço de Aeroportos e Rotas está documentado em
+[`airports-routes-service/README.md`](../airports-routes-service/README.md), com a coleção Postman
+em [`postman/airports-routes-p2.postman_collection.json`](postman/airports-routes-p2.postman_collection.json).
+
 Documento técnico de especificação arquitetural e divisão de responsabilidades para o projeto prático P1 da disciplina de Sistemas Distribuídos (LETI-SIDIS 2026/2027, ISEP — Data limite de submissão: 25 de outubro de 2026).
 
 ---
