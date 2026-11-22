@@ -154,10 +154,11 @@ The Postman collection is organized to validate the full CQRS lifecycle:
 - **Folder `5. CQRS & Assignment 2 Tests (RabbitMQ AMQP & Fleet Readiness Projection)`:**
   1. `1. GET /api/v2/fleet` — Verifies array response with readiness fields.
   2. `2. GET /api/v2/fleet/CS-TKA` — Verifies specific aircraft readiness retrieval on Instance 1 (:8081).
-  3. `3. Command: Update Aircraft CS-TKA to UNDER_MAINTENANCE` — Modifies write model.
+  3. `3. Command: Update Aircraft CS-TKA to UNDER_MAINTENANCE` — Modifies write model and publishes domain event.
   4. `4. Query (CQRS): Verify CS-TKA Readiness Updated to UNDER_MAINTENANCE` — Asserts that projection immediately updated to `UNDER_MAINTENANCE`.
   5. `5. Multi-Instance Query: GET /api/v2/fleet/CS-TKA on Instance 2 (:8082)` — Asserts multi-instance CQRS query capability across replicated instances.
-  6. `6. GET /api/v2/fleet/UNKNOWN-PLANE-999` — Asserts 404 Not Found handling.
+  6. `6. Multi-Instance Query: GET /api/v2/fleet/CS-TKA on Instance 3 (:8083)` — Asserts third replica integration and synchronization.
+  7. `7. Query: Non-Existent Aircraft Returns 404` — Asserts 404 Not Found handling.
 
 ---
 

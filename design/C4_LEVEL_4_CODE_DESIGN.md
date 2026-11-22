@@ -222,7 +222,7 @@ The CQRS read model, event listener projection state machine, and controller end
    - Validates `GET /api/v2/fleet/{registration}` returns 200 OK for existing aircraft.
    - Validates `GET /api/v2/fleet/{registration}` returns 404 Not Found for non-existent aircraft.
 4. **Multi-Instance End-to-End Postman Suite (100% Green):**
-   - Verified across replicas on ports `8081` and `8082`.
+   - Verified across replicas on ports `8081`, `8082`, and `8083` (3 instances mesh).
    - Verified P2P query forwarding on local miss.
    - Verified `/api/v2/fleet` and `/api/v2/fleet/{registration}` return accurate real-time projections.
 
