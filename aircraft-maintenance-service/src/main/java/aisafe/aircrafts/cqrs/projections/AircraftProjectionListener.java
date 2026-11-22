@@ -48,7 +48,7 @@ public class AircraftProjectionListener {
         model.setStatus(event.getStatus());
         model.setSeatCapacity(event.getSeatCapacity());
         model.setRange(event.getRange());
-        model.recalculateMood();
+        model.recalculateReadinessStatus();
 
         readModelRepository.save(model);
     }
@@ -60,7 +60,7 @@ public class AircraftProjectionListener {
         log.info("CQRS Projection: Status changed for aircraft {} to {}", event.getRegistrationNumber(), event.getNewStatus());
         readModelRepository.findByRegistrationNumber(event.getRegistrationNumber()).ifPresent(model -> {
             model.setStatus(event.getNewStatus());
-            model.recalculateMood();
+            model.recalculateReadinessStatus();
             readModelRepository.save(model);
         });
     }
@@ -73,7 +73,7 @@ public class AircraftProjectionListener {
         readModelRepository.findByRegistrationNumber(event.getRegistrationNumber()).ifPresent(model -> {
             int current = model.getPendingMaintenanceCount() != null ? model.getPendingMaintenanceCount() : 0;
             model.setPendingMaintenanceCount(current + 1);
-            model.recalculateMood();
+            model.recalculateReadinessStatus();
             readModelRepository.save(model);
         });
     }
@@ -86,7 +86,7 @@ public class AircraftProjectionListener {
         readModelRepository.findByRegistrationNumber(event.getRegistrationNumber()).ifPresent(model -> {
             int current = model.getPendingMaintenanceCount() != null ? model.getPendingMaintenanceCount() : 0;
             model.setPendingMaintenanceCount(Math.max(0, current - 1));
-            model.recalculateMood();
+            model.recalculateReadinessStatus();
             readModelRepository.save(model);
         });
     }
@@ -98,10 +98,9 @@ public class AircraftProjectionListener {
         log.info("CQRS Projection: Flight completed for aircraft {}, adding {} flight hours",
                 event.getAircraftRegistration(), event.getFlightDurationHours());
         readModelRepository.findByRegistrationNumber(event.getAircraftRegistration()).ifPresent(model -> {
-            double current = model.getTotalOperationalHours() != null ? model.getTotalOperationalHours() : 0.0;
-            double added = event.getFlightDurationHours() != null ? event.getFlightDurationHours() : 0.0;
-            model.setTotalOperationalHours(current + added);
-            model.recalculateMood();
+            double currentHours = model.getTotalOperationalHours() != null ? model.getTotalOperationalHours() : 0.0;
+            model.setTotalOperationalHours(currentHours + event.getFlightDurationHours());
+            model.recalculateReadinessStatus();
             readModelRepository.save(model);
         });
     }

@@ -1,6 +1,6 @@
 package aisafe.aircrafts.infrastructure;
 
-import aisafe.aircrafts.cqrs.projections.AircraftMoodResponse;
+import aisafe.aircrafts.cqrs.projections.AircraftFleetSummaryResponse;
 import aisafe.aircrafts.cqrs.projections.AircraftReadModel;
 import aisafe.aircrafts.cqrs.projections.AircraftReadModelRepository;
 import aisafe.aircrafts.domain.Aircraft;
@@ -21,63 +21,63 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Mandatory REST Controller for LETI-SIDIS Assignment 2:
- * GET /api/v2/unicorns - Returns the mood status of airplanes in JSON format.
- * Demonstrates a dedicated CQRS Read Model projection querying 'aircraft_read_model'.
+ * CQRS Query / Read Model REST Controller for LETI-SIDIS Assignment 2:
+ * GET /api/v2/fleet - Returns aggregated fleet operational and maintenance status in JSON format.
+ * Demonstrates a dedicated CQRS Read Model projection querying 'aircraft_read_model' without relational joins.
  */
 @RestController
-@RequestMapping("/api/v2/unicorns")
-@Tag(name = "Unicorns - Airplane Mood CQRS Projections",
-        description = "Query endpoints returning airplane sentiment and mood states projected via CQRS")
-public class UnicornsController {
+@RequestMapping("/api/v2/fleet")
+@Tag(name = "Fleet Read Model - CQRS Projections",
+        description = "Query endpoints returning pre-calculated fleet operational readiness projected via CQRS")
+public class FleetReadModelController {
 
     private final AircraftReadModelRepository readModelRepository;
     private final AircraftRepository aircraftRepository;
 
     @Autowired
-    public UnicornsController(AircraftReadModelRepository readModelRepository, AircraftRepository aircraftRepository) {
+    public FleetReadModelController(AircraftReadModelRepository readModelRepository, AircraftRepository aircraftRepository) {
         this.readModelRepository = readModelRepository;
         this.aircraftRepository = aircraftRepository;
     }
 
-    @Operation(summary = "Get mood status of all airplanes",
-            description = "Returns a list of all airplanes with their projected mood (HAPPY, TIRED, UNDER_CARE, GRUMPY, PROUD) and sparkleLevel.")
-    @ApiResponse(responseCode = "200", description = "List of airplane mood projections returned successfully")
+    @Operation(summary = "Get fleet operational readiness summary",
+            description = "Returns a list of all aircraft with their projected operational readiness status (READY_FOR_FLIGHT, UNDER_MAINTENANCE, MAINTENANCE_DUE, GROUNDED) and accumulated flight hours.")
+    @ApiResponse(responseCode = "200", description = "Fleet operational projections returned successfully")
     @GetMapping
-    public ResponseEntity<List<AircraftMoodResponse>> getAllAirplanesMood() {
+    public ResponseEntity<List<AircraftFleetSummaryResponse>> getFleetSummary() {
         ensureReadModelPopulated();
 
-        List<AircraftMoodResponse> response = readModelRepository.findAll()
+        List<AircraftFleetSummaryResponse> response = readModelRepository.findAll()
                 .stream()
-                .map(AircraftMoodResponse::fromReadModel)
+                .map(AircraftFleetSummaryResponse::fromReadModel)
                 .toList();
 
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "Get mood status of a specific airplane",
-            description = "Returns the mood status of a specific airplane by registration code.")
+    @Operation(summary = "Get operational readiness for a specific aircraft",
+            description = "Returns the operational readiness projection for a specific aircraft by registration code.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Airplane mood returned successfully"),
-            @ApiResponse(responseCode = "404", description = "Airplane not found")
+            @ApiResponse(responseCode = "200", description = "Aircraft projection returned successfully"),
+            @ApiResponse(responseCode = "404", description = "Aircraft not found")
     })
     @GetMapping("/{registration}")
-    public ResponseEntity<AircraftMoodResponse> getAirplaneMoodByRegistration(
-            @Parameter(description = "Airplane registration number (e.g. CS-TKA)")
+    public ResponseEntity<AircraftFleetSummaryResponse> getAircraftSummary(
+            @Parameter(description = "Aircraft registration number (e.g. CS-TKA)")
             @PathVariable String registration) {
 
         ensureReadModelPopulated();
 
         return readModelRepository.findByRegistrationNumber(registration)
-                .map(AircraftMoodResponse::fromReadModel)
+                .map(AircraftFleetSummaryResponse::fromReadModel)
                 .map(ResponseEntity::ok)
                 .orElseThrow(() -> new AircraftNotFoundException("Aircraft with registration " + registration + " not found."));
     }
 
     /**
      * Self-healing read model synchronization:
-     * If read model is empty (e.g., initial start with in-memory H2 database),
-     * projects from the write-side repository.
+     * If read model is empty upon startup with in-memory H2 database,
+     * seeds initial projection entries from the write-side repository.
      */
     private void ensureReadModelPopulated() {
         if (readModelRepository.count() == 0) {

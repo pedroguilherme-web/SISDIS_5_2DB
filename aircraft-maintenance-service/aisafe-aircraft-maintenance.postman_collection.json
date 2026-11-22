@@ -938,10 +938,10 @@
                               ]
                  },
                  {
-                     "name":  "5. CQRS \u0026 Assignment 2 Tests (RabbitMQ AMQP \u0026 Mood Projection)",
+                     "name":  "5. CQRS \u0026 Assignment 2 Tests (RabbitMQ AMQP \u0026 Fleet Readiness Projection)",
                      "item":  [
                                   {
-                                      "name":  "1. GET /api/v2/unicorns - All Airplanes Mood (CQRS Read Model)",
+                                      "name":  "1. GET /api/v2/fleet - Fleet Operational Readiness Summary (CQRS Read Model)",
                                       "event":  [
                                                     {
                                                         "listen":  "test",
@@ -950,14 +950,14 @@
                                                                                     "pm.test(\u0027Status code is 200 OK\u0027, function () {",
                                                                                     "    pm.response.to.have.status(200);",
                                                                                     "});",
-                                                                                    "pm.test(\u0027Response is an array of airplane moods\u0027, function () {",
+                                                                                    "pm.test(\u0027Response is an array of airplane readinessStatuss\u0027, function () {",
                                                                                     "    var jsonData = pm.response.json();",
                                                                                     "    pm.expect(jsonData).to.be.an(\u0027array\u0027);",
                                                                                     "    if (jsonData.length \u003e 0) {",
                                                                                     "        pm.expect(jsonData[0]).to.have.property(\u0027registrationNumber\u0027);",
-                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027mood\u0027);",
-                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027sparkleLevel\u0027);",
-                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027moodReason\u0027);",
+                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027readinessStatus\u0027);",
+                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027readinessStatus\u0027);",
+                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027operationalSummary\u0027);",
                                                                                     "    }",
                                                                                     "});"
                                                                                 ],
@@ -971,20 +971,20 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns",
+                                                                  "raw":  "{{instance1_url}}/api/v2/fleet",
                                                                   "host":  [
                                                                                "{{instance1_url}}"
                                                                            ],
                                                                   "path":  [
                                                                                "api",
                                                                                "v2",
-                                                                               "unicorns"
+                                                                               "fleet"
                                                                            ]
                                                               }
                                                   }
                                   },
                                   {
-                                      "name":  "2. GET /api/v2/unicorns/CS-TKA - Specific Airplane Mood Projection (Instance 1)",
+                                      "name":  "2. GET /api/v2/fleet/CS-TKA - Specific Airplane Fleet Readiness Projection (Instance 1)",
                                       "event":  [
                                                     {
                                                         "listen":  "test",
@@ -993,11 +993,11 @@
                                                                                     "pm.test(\u0027Status code is 200 OK\u0027, function () {",
                                                                                     "    pm.response.to.have.status(200);",
                                                                                     "});",
-                                                                                    "pm.test(\u0027Airplane mood data is valid\u0027, function () {",
+                                                                                    "pm.test(\u0027Airplane readinessStatus data is valid\u0027, function () {",
                                                                                     "    var jsonData = pm.response.json();",
                                                                                     "    pm.expect(jsonData.registrationNumber).to.eql(\u0027CS-TKA\u0027);",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027mood\u0027);",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027sparkleLevel\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027readinessStatus\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027readinessStatus\u0027);",
                                                                                     "});"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -1010,14 +1010,14 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns/CS-TKA",
+                                                                  "raw":  "{{instance1_url}}/api/v2/fleet/CS-TKA",
                                                                   "host":  [
                                                                                "{{instance1_url}}"
                                                                            ],
                                                                   "path":  [
                                                                                "api",
                                                                                "v2",
-                                                                               "unicorns",
+                                                                               "fleet",
                                                                                "CS-TKA"
                                                                            ]
                                                               }
@@ -1070,7 +1070,7 @@
                                                   }
                                   },
                                   {
-                                      "name":  "4. Query (CQRS): Verify CS-TKA Mood Updated to UNDER_CARE (Instance 1)",
+                                      "name":  "4. Query (CQRS): Verify CS-TKA Readiness Updated to UNDER_MAINTENANCE (Instance 1)",
                                       "event":  [
                                                     {
                                                         "listen":  "test",
@@ -1079,12 +1079,12 @@
                                                                                     "pm.test(\u0027Status code is 200 OK\u0027, function () {",
                                                                                     "    pm.response.to.have.status(200);",
                                                                                     "});",
-                                                                                    "pm.test(\u0027Mood projected to UNDER_CARE after status update\u0027, function () {",
+                                                                                    "pm.test(\u0027readinessStatus projected to UNDER_MAINTENANCE after status update\u0027, function () {",
                                                                                     "    var jsonData = pm.response.json();",
                                                                                     "    pm.expect(jsonData.registrationNumber).to.eql(\u0027CS-TKA\u0027);",
-                                                                                    "    pm.expect(jsonData.mood).to.eql(\u0027UNDER_CARE\u0027);",
-                                                                                    "    pm.expect(jsonData.sparkleLevel).to.eql(45);",
-                                                                                    "    pm.expect(jsonData.moodReason).to.include(\u0027hangar\u0027);",
+                                                                                    "    pm.expect(jsonData.readinessStatus).to.eql(\u0027UNDER_MAINTENANCE\u0027);",
+                                                                                    "    pm.expect(jsonData.readinessStatus).to.eql(45);",
+                                                                                    "    pm.expect(jsonData.operationalSummary).to.include(\u0027hangar\u0027);",
                                                                                     "});"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -1097,21 +1097,21 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns/CS-TKA",
+                                                                  "raw":  "{{instance1_url}}/api/v2/fleet/CS-TKA",
                                                                   "host":  [
                                                                                "{{instance1_url}}"
                                                                            ],
                                                                   "path":  [
                                                                                "api",
                                                                                "v2",
-                                                                               "unicorns",
+                                                                               "fleet",
                                                                                "CS-TKA"
                                                                            ]
                                                               }
                                                   }
                                   },
                                   {
-                                      "name":  "5. Multi-Instance Query: GET /api/v2/unicorns/CS-TKA on Instance 2 (:8082)",
+                                      "name":  "5. Multi-Instance Query: GET /api/v2/fleet/CS-TKA on Instance 2 (:8082)",
                                       "event":  [
                                                     {
                                                         "listen":  "test",
@@ -1120,11 +1120,11 @@
                                                                                     "pm.test(\u0027Status code is 200 OK on Instance 2\u0027, function () {",
                                                                                     "    pm.response.to.have.status(200);",
                                                                                     "});",
-                                                                                    "pm.test(\u0027Instance 2 independently serves projected mood\u0027, function () {",
+                                                                                    "pm.test(\u0027Instance 2 independently serves projected readinessStatus\u0027, function () {",
                                                                                     "    var jsonData = pm.response.json();",
                                                                                     "    pm.expect(jsonData.registrationNumber).to.eql(\u0027CS-TKA\u0027);",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027mood\u0027);",
-                                                                                    "    pm.expect(jsonData).to.have.property(\u0027sparkleLevel\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027readinessStatus\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027readinessStatus\u0027);",
                                                                                     "});"
                                                                                 ],
                                                                        "type":  "text/javascript"
@@ -1137,14 +1137,14 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{instance2_url}}/api/v2/unicorns/CS-TKA",
+                                                                  "raw":  "{{instance2_url}}/api/v2/fleet/CS-TKA",
                                                                   "host":  [
                                                                                "{{instance2_url}}"
                                                                            ],
                                                                   "path":  [
                                                                                "api",
                                                                                "v2",
-                                                                               "unicorns",
+                                                                               "fleet",
                                                                                "CS-TKA"
                                                                            ]
                                                               }
@@ -1171,14 +1171,14 @@
 
                                                                  ],
                                                       "url":  {
-                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns/UNKNOWN-PLANE-999",
+                                                                  "raw":  "{{instance1_url}}/api/v2/fleet/UNKNOWN-PLANE-999",
                                                                   "host":  [
                                                                                "{{instance1_url}}"
                                                                            ],
                                                                   "path":  [
                                                                                "api",
                                                                                "v2",
-                                                                               "unicorns",
+                                                                               "fleet",
                                                                                "UNKNOWN-PLANE-999"
                                                                            ]
                                                               }

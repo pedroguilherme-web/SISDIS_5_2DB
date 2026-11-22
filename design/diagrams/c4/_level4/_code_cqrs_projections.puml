@@ -12,23 +12,24 @@ skinparam class {
 title C4 Level 4: Code Diagram - CQRS Read Model & Event-Driven Projections (Aircraft & Maintenance Service)
 
 package "Infrastructure Layer (REST / Web)" {
-    class UnicornsController <<@RestController>> {
+    class FleetReadModelController <<@RestController>> {
         - readModelRepository: AircraftReadModelRepository
         - aircraftRepository: AircraftRepository
-        + getAllAirplanesMood(): ResponseEntity<List<AircraftMoodResponse>>
-        + getAirplaneMoodByRegistration(registration: String): ResponseEntity<AircraftMoodResponse>
+        + getFleetSummary(): ResponseEntity<List<AircraftFleetSummaryResponse>>
+        + getAircraftSummary(registration: String): ResponseEntity<AircraftFleetSummaryResponse>
         - ensureReadModelPopulated(): void
     }
 
-    class AircraftMoodResponse <<record>> {
+    class AircraftFleetSummaryResponse <<record>> {
         + registrationNumber(): String
         + model(): String
         + operationalStatus(): String
-        + mood(): String
-        + sparkleLevel(): Integer
-        + moodReason(): String
+        + readinessStatus(): String
+        + pendingMaintenanceCount(): Integer
+        + totalOperationalHours(): Double
+        + operationalSummary(): String
         + lastUpdated(): Instant
-        + {static} fromReadModel(model: AircraftReadModel): AircraftMoodResponse
+        + {static} fromReadModel(model: AircraftReadModel): AircraftFleetSummaryResponse
     }
 }
 
@@ -41,13 +42,12 @@ package "CQRS Read Model Projections" {
         - range: Double
         - totalOperationalHours: Double
         - pendingMaintenanceCount: Integer
-        - moodStatus: String
-        - sparkleLevel: Integer
-        - moodReason: String
+        - readinessStatus: String
+        - operationalSummary: String
         - lastUpdated: Instant
-        + recalculateMood(): void
-        + getMoodStatus(): String
-        + getSparkleLevel(): Integer
+        + recalculateReadinessStatus(): void
+        + getReadinessStatus(): String
+        + getOperationalSummary(): String
     }
 
     interface AircraftReadModelRepository <<@Repository>> {
@@ -144,8 +144,8 @@ DomainEvent <|-- MaintenanceCompletedEvent
 DomainEvent <|-- FlightCompletedEvent
 
 ' Controller dependencies
-UnicornsController --> AircraftReadModelRepository : queries
-UnicornsController ..> AircraftMoodResponse : returns DTO
+FleetReadModelController --> AircraftReadModelRepository : queries
+FleetReadModelController ..> AircraftFleetSummaryResponse : returns DTO
 
 ' Projection dependencies
 AircraftReadModelRepository ..> AircraftReadModel : manages entity

@@ -1,0 +1,142 @@
+@startuml _event_projection
+autonumber
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam ResponseMessageBelowArrow true
+
+title Asynchronous CQRS Event-Driven Projection & Fleet Readiness Query Flow (C4+1 Scenario)
+
+actor "Client / Operator" as Client
+
+box "Write Side - Aircraft & Maintenance Service (Instance 1 :8081)" #EBF5FB
+    participant "AircraftController" as Ctrl1
+    participant "UpdateAircraftUseCase" as UC1
+    participant "AircraftRepository" as Repo1
+    database "H2 Write DB\n(aircrafts table)" as DB1
+    participant "DomainEventPublisher" as Publisher
+end box
+
+box "Message Broker (Docker Container)" #FCF3CF
+    queue "RabbitMQ Topic Exchange\n(aisafe.exchange)" as Exchange
+    queue "Durable Queue\n(aisafe.cqrs.projections.queue)" as Queue
+end box
+
+box "Read Side - CQRS Projections & Query (Instance 2 :8082)" #EAFAF1
+    participant "AircraftProjectionListener" as Listener2
+    participant "AircraftReadModelRepo" as ReadRepo2
+    database "H2 Read DB\n(aircraft_read_model)" as ReadDB2
+    participant "FleetReadModelController" as FleetCtrl2
+end box
+
+== 1. Command Execution & State Mutation (Write Model) ==
+
+Client -> Ctrl1 : PATCH /api/aircrafts/CS-TKA\n[Headers: If-Match: "0", Body: status="UNDER_MAINTENANCE"]
+activate Ctrl1
+
+Ctrl1 -> UC1 : execute(reg="CS-TKA", req, clientVersion=0)
+activate UC1
+
+UC1 -> Repo1 : findByRegistrationNumber("CS-TKA")
+activate Repo1
+Repo1 -> DB1 : SELECT * FROM aircrafts WHERE registration_number='CS-TKA'
+activate DB1
+DB1 --> Repo1 : Aircraft entity (version=0, status=AVAILABLE)
+deactivate DB1
+Repo1 --> UC1 : Aircraft entity
+deactivate Repo1
+
+note over UC1
+  **Optimistic Concurrency Control (OCC):**
+  Verify entity.version (0) == clientVersion (0) -> Match!
+  Mutate status to UNDER_MAINTENANCE.
+  Increment entity.version to 1.
+end note
+
+UC1 -> Repo1 : save(aircraft)
+activate Repo1
+Repo1 -> DB1 : UPDATE aircrafts SET status='UNDER_MAINTENANCE', version=1 ...
+activate DB1
+DB1 --> Repo1 : Commit OK
+deactivate DB1
+Repo1 --> UC1 : Aircraft updated
+deactivate Repo1
+
+== 2. Asynchronous Event Dissemination (RabbitMQ AMQP) ==
+
+UC1 -> Publisher : publish("aircraft.status.changed", AircraftStatusChangedEvent)
+activate Publisher
+
+Publisher -> Exchange : convertAndSend("aisafe.exchange", "aircraft.status.changed", event)
+activate Exchange
+note over Exchange
+  **Topic Exchange Routing:**
+  Matches binding pattern '#'
+  Routes message to queues.
+end note
+Exchange -> Queue : enqueue message
+deactivate Exchange
+
+Publisher --> UC1 : Event dispatched (non-blocking)
+deactivate Publisher
+
+UC1 --> Ctrl1 : AircraftResponse(status="UNDER_MAINTENANCE", version=1)
+deactivate UC1
+
+Ctrl1 --> Client : 200 OK [ETag: "1"]\n{ "registrationNumber": "CS-TKA", "status": "UNDER_MAINTENANCE" }
+deactivate Ctrl1
+
+== 3. Asynchronous Read Model Projection (Eventual Consistency) ==
+
+Queue -> Listener2 : @RabbitListener receives message\n(AircraftStatusChangedEvent: CS-TKA -> UNDER_MAINTENANCE)
+activate Listener2
+
+Listener2 -> ReadRepo2 : findByRegistrationNumber("CS-TKA")
+activate ReadRepo2
+ReadRepo2 -> ReadDB2 : SELECT * FROM aircraft_read_model WHERE registration_number='CS-TKA'
+activate ReadDB2
+ReadDB2 --> ReadRepo2 : AircraftReadModel entity
+deactivate ReadDB2
+ReadRepo2 --> Listener2 : AircraftReadModel entity
+deactivate ReadRepo2
+
+note over Listener2
+  **State Evaluation (recalculateReadinessStatus):**
+  status == UNDER_MAINTENANCE
+  -> readinessStatus = "UNDER_MAINTENANCE"
+  -> operationalSummary = "Currently undergoing scheduled maintenance servicing in hangar"
+  -> lastUpdated = Instant.now()
+end note
+
+Listener2 -> ReadRepo2 : save(readModel)
+activate ReadRepo2
+ReadRepo2 -> ReadDB2 : UPDATE aircraft_read_model SET readiness_status='UNDER_MAINTENANCE' ...
+activate ReadDB2
+ReadDB2 --> ReadRepo2 : Updated OK
+deactivate ReadDB2
+ReadRepo2 --> Listener2 : Saved
+deactivate ReadRepo2
+deactivate Listener2
+
+== 4. Query Execution (O(1) Lock-Free CQRS Query) ==
+
+Client -> FleetCtrl2 : GET /api/v2/fleet/CS-TKA
+activate FleetCtrl2
+
+FleetCtrl2 -> ReadRepo2 : findByRegistrationNumber("CS-TKA")
+activate ReadRepo2
+ReadRepo2 -> ReadDB2 : SELECT * FROM aircraft_read_model WHERE registration_number='CS-TKA'
+activate ReadDB2
+ReadDB2 --> ReadRepo2 : ReadModel (readinessStatus=UNDER_MAINTENANCE)
+deactivate ReadDB2
+ReadRepo2 --> FleetCtrl2 : ReadModel
+deactivate ReadRepo2
+
+note over FleetCtrl2
+  Maps AircraftReadModel
+  to AircraftFleetSummaryResponse DTO
+end note
+
+FleetCtrl2 --> Client : 200 OK\n{ "registrationNumber": "CS-TKA", "operationalStatus": "UNDER_MAINTENANCE", "readinessStatus": "UNDER_MAINTENANCE", "operationalSummary": "Currently undergoing scheduled maintenance servicing in hangar" }
+deactivate FleetCtrl2
+
+@enduml

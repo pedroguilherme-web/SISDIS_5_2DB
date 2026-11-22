@@ -9,7 +9,7 @@ skinparam class {
     ArrowColor #27AE60
 }
 
-title C4 Level 4: Code Diagram - Command / Write Model & Domain Aggregate (Aircraft & Maintenance Service)
+title C4 Level 4: Code Diagram - Command / Write Model & Domain Aggregates (Aircraft & Maintenance Service)
 
 package "Controllers (REST)" {
     class AircraftController <<@RestController>> {
@@ -18,6 +18,7 @@ package "Controllers (REST)" {
         - viewAircraftDetailsUseCase: ViewAircraftDetailsUseCase
         + registerAircraft(request: RegisterAircraftRequest): ResponseEntity
         + updateAircraft(registration: String, request: UpdateAircraftRequest, ifMatch: String): ResponseEntity
+        + getAircraftDetails(registration: String): ResponseEntity
     }
 
     class MaintenanceController <<@RestController>> {
@@ -25,6 +26,13 @@ package "Controllers (REST)" {
         - updateRecordUseCase: UpdateMaintenanceRecordUseCase
         + createRecord(request: CreateMaintenanceRecordRequest): ResponseEntity
         + updateRecord(id: UUID, request: UpdateMaintenanceRecordsRequest, ifMatch: String): ResponseEntity
+    }
+}
+
+package "Utilities & Concurrency Helpers" {
+    class ETagUtils {
+        + {static} parseVersion(ifMatch: String): Long
+        + {static} formatVersion(version: Long): String
     }
 }
 
@@ -120,6 +128,9 @@ package "Persistence & Concurrency (JPA)" {
 
 package "Event Dispatching" {
     class DomainEventPublisher {
+        - rabbitTemplate: RabbitTemplate
+        - eventPublisher: ApplicationEventPublisher
+        - exchangeName: String
         + publish(routingKey: String, event: DomainEvent): void
     }
 }
@@ -127,8 +138,10 @@ package "Event Dispatching" {
 ' Relations
 AircraftController --> RegisterAircraftUseCase : invokes
 AircraftController --> UpdateAircraftUseCase : invokes
+AircraftController ..> ETagUtils : parses If-Match header
 MaintenanceController --> CreateMaintenanceRecordUseCase : invokes
 MaintenanceController --> UpdateMaintenanceRecordUseCase : invokes
+MaintenanceController ..> ETagUtils : parses If-Match header
 
 RegisterAircraftUseCase --> AircraftRepository : persists
 RegisterAircraftUseCase --> DomainEventPublisher : emits AircraftRegisteredEvent

@@ -13,7 +13,7 @@ import java.time.Instant;
 /**
  * CQRS Read Model for Aircraft and Fleet status.
  * Denormalized entity stored in the read table 'aircraft_read_model'.
- * Optimized specifically for fast read operations, dashboards, and mood projections.
+ * Optimized specifically for fast read operations, dashboards, and operational readiness projections.
  */
 @Entity
 @Table(name = "aircraft_read_model")
@@ -44,14 +44,11 @@ public class AircraftReadModel {
     @Column(name = "pending_maintenance_count")
     private Integer pendingMaintenanceCount = 0;
 
-    @Column(name = "mood_status")
-    private String moodStatus = "HAPPY";
+    @Column(name = "readiness_status")
+    private String readinessStatus = "READY_FOR_FLIGHT";
 
-    @Column(name = "sparkle_level")
-    private Integer sparkleLevel = 90;
-
-    @Column(name = "mood_reason")
-    private String moodReason = "Fully operational and ready for flight";
+    @Column(name = "operational_summary")
+    private String operationalSummary = "Fully operational; ready for scheduled flights";
 
     @Column(name = "last_updated")
     private Instant lastUpdated = Instant.now();
@@ -62,7 +59,7 @@ public class AircraftReadModel {
         this.status = status;
         this.seatCapacity = seatCapacity;
         this.range = range;
-        recalculateMood();
+        recalculateReadinessStatus();
     }
 
     public AircraftReadModel(String registrationNumber, String modelName, String status, Double totalOperationalHours, Integer pendingMaintenanceCount) {
@@ -71,31 +68,23 @@ public class AircraftReadModel {
         this.status = status;
         this.totalOperationalHours = totalOperationalHours != null ? totalOperationalHours : 0.0;
         this.pendingMaintenanceCount = pendingMaintenanceCount != null ? pendingMaintenanceCount : 0;
-        recalculateMood();
+        recalculateReadinessStatus();
     }
 
-    public void recalculateMood() {
+    public void recalculateReadinessStatus() {
         this.lastUpdated = Instant.now();
         if ("UNDER_MAINTENANCE".equalsIgnoreCase(this.status)) {
-            this.moodStatus = "UNDER_CARE";
-            this.sparkleLevel = 45;
-            this.moodReason = "Currently undergoing maintenance servicing in the hangar";
+            this.readinessStatus = "UNDER_MAINTENANCE";
+            this.operationalSummary = "Currently undergoing scheduled maintenance servicing in hangar";
         } else if ("INACTIVE".equalsIgnoreCase(this.status)) {
-            this.moodStatus = "GRUMPY";
-            this.sparkleLevel = 15;
-            this.moodReason = "Grounded or inactive; awaiting operational clearance";
+            this.readinessStatus = "GROUNDED";
+            this.operationalSummary = "Aircraft grounded or decommissioned; awaiting clearance";
         } else if (this.pendingMaintenanceCount != null && this.pendingMaintenanceCount > 0) {
-            this.moodStatus = "TIRED";
-            this.sparkleLevel = 60;
-            this.moodReason = "Operating smoothly, but maintenance inspection is due soon";
-        } else if (this.totalOperationalHours != null && this.totalOperationalHours > 1000.0) {
-            this.moodStatus = "PROUD";
-            this.sparkleLevel = 88;
-            this.moodReason = "Veteran aircraft with over 1000 hours of reliable flight";
+            this.readinessStatus = "MAINTENANCE_DUE";
+            this.operationalSummary = "Active in fleet; scheduled maintenance inspection is pending";
         } else {
-            this.moodStatus = "HAPPY";
-            this.sparkleLevel = 98;
-            this.moodReason = "Optimal flight conditions; eager for the next destination!";
+            this.readinessStatus = "READY_FOR_FLIGHT";
+            this.operationalSummary = "Optimal operational conditions; ready for scheduled flights";
         }
     }
 }
