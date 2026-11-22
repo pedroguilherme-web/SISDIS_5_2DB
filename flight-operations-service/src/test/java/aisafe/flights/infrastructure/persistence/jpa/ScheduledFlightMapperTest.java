@@ -10,32 +10,52 @@ import java.time.ZoneOffset;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ScheduledFlightMapperTest {
+    private static final OffsetDateTime DEPARTURE = OffsetDateTime.of(2026, 12, 1, 8, 0, 0, 0, ZoneOffset.UTC);
+    private static final OffsetDateTime ARRIVAL = DEPARTURE.plusHours(2);
 
     @Test
-    void shouldMapJpaEntityToDomainSuccessfully() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(2);
-
+    void shouldMapJpaEntityToDomain() {
         ScheduledFlightJpaEntity entity = new ScheduledFlightJpaEntity(
-                departure, arrival, FlightStatus.COMPLETED, "LIS", "OPO", "CS-TRP"
-        );
-        entity.setId(5L);
+                "f-5", DEPARTURE, ARRIVAL, FlightStatus.COMPLETED, "LIS", "OPO", "CS-TRP", "A320");
 
-        ScheduledFlight domainFlight = ScheduledFlightMapper.toDomain(entity);
+        ScheduledFlight flight = ScheduledFlightMapper.toDomain(entity);
 
-        assertNotNull(domainFlight);
-        assertEquals(5L, domainFlight.getId());
-        assertEquals(departure, domainFlight.getDepartureDateTime());
-        assertEquals(arrival, domainFlight.getArrivalDateTime());
-        assertEquals(FlightStatus.COMPLETED, domainFlight.getStatus());
-        assertEquals("LIS", domainFlight.getOriginCode());
-        assertEquals("OPO", domainFlight.getDestinationCode());
-        assertEquals("CS-TRP", domainFlight.getAircraftRegistrationNumber());
+        assertEquals("f-5", flight.getId());
+        assertEquals(DEPARTURE, flight.getDepartureDateTime());
+        assertEquals(ARRIVAL, flight.getArrivalDateTime());
+        assertEquals(FlightStatus.COMPLETED, flight.getStatus());
+        assertEquals("LIS", flight.getOriginCode());
+        assertEquals("OPO", flight.getDestinationCode());
+        assertEquals("CS-TRP", flight.getAircraftRegistrationNumber());
+        assertEquals("A320", flight.getAircraftModel());
+    }
+
+    @Test
+    void shouldMapNewDomainFlightToEntityKeepingItsUuidAndNoVersion() {
+        ScheduledFlight flight = new ScheduledFlight(DEPARTURE, ARRIVAL, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TRP", "A320");
+
+        ScheduledFlightJpaEntity entity = ScheduledFlightMapper.toNewEntity(flight);
+
+        assertEquals(flight.getId(), entity.getId());
+        assertEquals("A320", entity.getAircraftModel());
+        assertNull(entity.getVersion(), "a null version tells Spring Data the entity is new");
+    }
+
+    @Test
+    void shouldCopyOnlyTheMutableStatusOntoAManagedEntity() {
+        ScheduledFlightJpaEntity entity = new ScheduledFlightJpaEntity(
+                "f-5", DEPARTURE, ARRIVAL, FlightStatus.IN_FLIGHT, "LIS", "OPO", "CS-TRP", "A320");
+        ScheduledFlight flight = ScheduledFlightMapper.toDomain(entity);
+        flight.changeStatus(FlightStatus.COMPLETED);
+
+        ScheduledFlightMapper.copyMutableState(flight, entity);
+
+        assertEquals(FlightStatus.COMPLETED, entity.getStatus());
+        assertEquals("f-5", entity.getId());
     }
 
     @Test
     void shouldReturnNullWhenEntityIsNull() {
-        ScheduledFlight domainFlight = ScheduledFlightMapper.toDomain(null);
-        assertNull(domainFlight);
+        assertNull(ScheduledFlightMapper.toDomain(null));
     }
 }

@@ -1,18 +1,17 @@
 package aisafe.flights.domain;
 
 import aisafe.shared.domain.BaseRepository;
-import aisafe.shared.domain.PaginatedResult;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
 public interface ScheduledFlightRepository extends BaseRepository<ScheduledFlight> {
-    Optional<ScheduledFlight> findById(Long id);
+    Optional<ScheduledFlight> findById(String id);
+
+    void lockAircraftForScheduling(String registration);
 
     List<ScheduledFlight> findByAircraftRegistration(String registration);
-
-    List<ScheduledFlight> findFlightsForUtilization(String registration, OffsetDateTime start, OffsetDateTime end);
 
     boolean existsByOverlappingSchedule(String registration, OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime);
 
@@ -20,12 +19,13 @@ public interface ScheduledFlightRepository extends BaseRepository<ScheduledFligh
 
     long countByRoute(String origin, String destination);
 
-    List<ModelUtilizationData> findTopModelsByFlightHours(int limit);
-    List<ModelUtilizationData> findTopModelsByAssignments(int limit);
+    List<ModelUtilizationData> findModelUtilizationByFlightHours();
 
-    Double calculateTotalOperationalHoursByRegistration(String registration);
+    List<ModelUtilizationData> findModelUtilizationByAssignments();
 
-    PaginatedResult<RouteUtilizationData> getFlightUtilizationReport(OffsetDateTime startDate, OffsetDateTime endDate, int page, int size);
+    double calculateTotalOperationalHoursByRegistration(String registration);
 
-    Double calculateOperationalHoursSince(String registration, OffsetDateTime sinceDate);
+    double calculateOperationalHoursSince(String registration, OffsetDateTime sinceDate);
+
+    List<RouteUtilizationData> findRouteUtilization(OffsetDateTime startDate, OffsetDateTime endDate);
 }

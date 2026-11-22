@@ -2,8 +2,18 @@
   "info": {
     "_postman_id": "f4a8b912-3c7d-4e5a-9b1a-8d7e6f5c4b3a",
     "name": "AISafe - Flight Operations Service (Distributed & P2P Tests)",
-    "description": "End-to-end distributed tests for Flight Operations Service (Ports 8071 & 8072), demonstrating authentication, inter-service collaboration, P2P HTTP GET forwarding, loop prevention, and security audit logging.",
+    "description": "End-to-end tests of the Flight Operations Service with two replicas (8071 and 8072) and the Aircraft & Maintenance (8081) and Airports & Routes (8092) services.\n\nRun the folders in order. Folder 0 loads reference data into the other services from docs/postman/csv-imports (run from the repository root so the CSV paths resolve). Flight dates are generated per run, so the collection can be run repeatedly against the same services.\n\nThe last folder (Manual) needs services to be stopped by hand and is not part of a normal run.\n\nNewman: newman run flight-operations-service/docs/flight-operations-postman-collection.json --folder \"0. Setup\" --folder \"1. Scheduling across replicas\" --folder \"2. Flight lifecycle\" --folder \"3. Inter-service endpoints\" --folder \"4. Reports and import\" --folder \"5. Assignment 2 - CQRS and AMQP\"",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{jwt_token}}",
+        "type": "string"
+      }
+    ]
   },
   "variable": [
     {
@@ -17,196 +27,2301 @@
       "type": "string"
     },
     {
+      "key": "aircraft_url",
+      "value": "http://localhost:8081",
+      "type": "string"
+    },
+    {
+      "key": "routes_url",
+      "value": "http://localhost:8092",
+      "type": "string"
+    },
+    {
+      "key": "admin_username",
+      "value": "admin",
+      "type": "string"
+    },
+    {
+      "key": "admin_password",
+      "value": "admin123",
+      "type": "string"
+    },
+    {
       "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "aircraft_registration",
+      "value": "JA-HND",
+      "type": "string"
+    },
+    {
+      "key": "flight1_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flight2_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flight1_departure",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flight1_arrival",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "overlap_departure",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "overlap_arrival",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flight2_departure",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "flight2_arrival",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hours_before",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "a2_flight_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "a2_departure",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "a2_arrival",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "m4_departure",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "m4_arrival",
       "value": "",
       "type": "string"
     }
   ],
   "item": [
     {
-      "name": "1. Authenticate (Login as Admin on Instance 1)",
-      "event": [
+      "name": "0. Setup",
+      "description": "Login and reference data in the other services (airports, routes, aircraft models, aircraft). 207 means the rows already existed from a previous run.",
+      "item": [
         {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test(\"Status code is 200\", function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "var jsonData = pm.response.json();",
-              "if (jsonData.token) {",
-              "    pm.collectionVariables.set(\"jwt_token\", jsonData.token);",
-              "}"
+          "name": "0.1 Login as admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"jwt_token\", pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
-            "type": "text/javascript"
+            "url": {
+              "raw": "{{instance1_url}}/api/auth/login",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{admin_username}}\",\n  \"password\": \"{{admin_password}}\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "0.2 Import airports (Airports & Routes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"Rows imported, or already loaded by a previous run\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 207, 400]);",
+                  "    if (pm.response.code === 400) {",
+                  "        pm.expect(body.errors.every(e => e.errorMessage.includes(\"already exists\"))).to.be.true;",
+                  "    }",
+                  "});",
+                  "pm.test(\"Reports counts\", () => pm.expect(body.successfulCount).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{routes_url}}/api/airports/import",
+              "host": [
+                "{{routes_url}}"
+              ],
+              "path": [
+                "api",
+                "airports",
+                "import"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "docs/postman/csv-imports/1_airports.csv"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "0.3 Import routes (Airports & Routes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"Rows imported, or already loaded by a previous run\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 207, 400]);",
+                  "    if (pm.response.code === 400) {",
+                  "        pm.expect(body.errors.every(e => e.errorMessage.includes(\"already exists\"))).to.be.true;",
+                  "    }",
+                  "});",
+                  "pm.test(\"Reports counts\", () => pm.expect(body.successfulCount).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{routes_url}}/api/routes/import",
+              "host": [
+                "{{routes_url}}"
+              ],
+              "path": [
+                "api",
+                "routes",
+                "import"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "docs/postman/csv-imports/4_routes.csv"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "0.4 Import aircraft models (Aircraft & Maintenance)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"Rows imported, or already loaded by a previous run\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 207, 400]);",
+                  "    if (pm.response.code === 400) {",
+                  "        pm.expect(body.errors.every(e => e.errorMessage.includes(\"already exists\"))).to.be.true;",
+                  "    }",
+                  "});",
+                  "pm.test(\"Reports counts\", () => pm.expect(body.successfulCount).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{aircraft_url}}/api/aircraftModels/import",
+              "host": [
+                "{{aircraft_url}}"
+              ],
+              "path": [
+                "api",
+                "aircraftModels",
+                "import"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "docs/postman/csv-imports/2_aircraft_models.csv"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "0.5 Import aircraft (Aircraft & Maintenance)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"Rows imported, or already loaded by a previous run\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 207, 400]);",
+                  "    if (pm.response.code === 400) {",
+                  "        pm.expect(body.errors.every(e => e.errorMessage.includes(\"already exists\"))).to.be.true;",
+                  "    }",
+                  "});",
+                  "pm.test(\"Reports counts\", () => pm.expect(body.successfulCount).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{aircraft_url}}/api/aircrafts/import",
+              "host": [
+                "{{aircraft_url}}"
+              ],
+              "path": [
+                "api",
+                "aircrafts",
+                "import"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "docs/postman/csv-imports/3_aircrafts.csv"
+                }
+              ]
+            }
           }
         }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
-        },
-        "url": {
-          "raw": "{{instance1_url}}/api/auth/login",
-          "host": ["{{instance1_url}}"],
-          "path": ["api", "auth", "login"]
-        }
-      }
+      ]
     },
     {
-      "name": "2. Schedule Flight on Instance 1 (Inter-Service Collaboration)",
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
+      "name": "1. Scheduling across replicas",
+      "description": "Flights are partitioned by aircraft: every flight of an aircraft is stored by the replica that owns it (hash of the registration over the sorted replica URLs; JA-HND belongs to instance 1). A command sent to another replica is forwarded to the owner, where a per-aircraft database lock serialises the conflict check. Listings merge the data of all replicas.",
+      "item": [
+        {
+          "name": "1.1 Schedule flight on instance 1",
+          "event": [
             {
-              "key": "token",
-              "value": "{{jwt_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "POST",
-        "header": [
-          {
-            "key": "Content-Type",
-            "value": "application/json"
-          }
-        ],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"aircraftId\": \"CS-TKA\",\n  \"originIataCode\": \"LIS\",\n  \"destinationIataCode\": \"OPO\",\n  \"departureDateTime\": \"2026-11-15T10:00:00Z\",\n  \"arrivalDateTime\": \"2026-11-15T11:30:00Z\"\n}"
-        },
-        "url": {
-          "raw": "{{instance1_url}}/api/flights",
-          "host": ["{{instance1_url}}"],
-          "path": ["api", "flights"]
-        }
-      }
-    },
-    {
-      "name": "3. Get Flights by Aircraft on Instance 1 (Local Hit)",
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{jwt_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{instance1_url}}/api/flights?aircraftId=CS-TKA",
-          "host": ["{{instance1_url}}"],
-          "path": ["api", "flights"],
-          "query": [
-            {
-              "key": "aircraftId",
-              "value": "CS-TKA"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "name": "4. Get Flights by Aircraft on Instance 2 (P2P Forwarding from Instance 1)",
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{jwt_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{instance2_url}}/api/flights?aircraftId=CS-TKA",
-          "host": ["{{instance2_url}}"],
-          "path": ["api", "flights"],
-          "query": [
-            {
-              "key": "aircraftId",
-              "value": "CS-TKA"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "name": "5. Get Flights for Non-Existent Aircraft (Global 404 & Loop Prevention)",
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{jwt_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{instance1_url}}/api/flights?aircraftId=CS-NONE",
-          "host": ["{{instance1_url}}"],
-          "path": ["api", "flights"],
-          "query": [
-            {
-              "key": "aircraftId",
-              "value": "CS-NONE"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "name": "6. Flight Utilization Report",
-      "request": {
-        "auth": {
-          "type": "bearer",
-          "bearer": [
-            {
-              "key": "token",
-              "value": "{{jwt_token}}",
-              "type": "string"
-            }
-          ]
-        },
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{instance1_url}}/api/flights/reports/utilization?page=0&size=20",
-          "host": ["{{instance1_url}}"],
-          "path": ["api", "flights", "reports", "utilization"],
-          "query": [
-            {
-              "key": "page",
-              "value": "0"
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A random future day per run, so the collection can be run repeatedly.",
+                  "const day = new Date(Date.UTC(2027, 0, 1) + Math.floor(Math.random() * 3000) * 86400000);",
+                  "const at = (h, m) => new Date(day.getTime() + (h * 60 + m) * 60000).toISOString().replace(\".000Z\", \"Z\");",
+                  "pm.collectionVariables.set(\"flight1_departure\", at(8, 0));",
+                  "pm.collectionVariables.set(\"flight1_arrival\", at(9, 15));",
+                  "pm.collectionVariables.set(\"overlap_departure\", at(9, 0));",
+                  "pm.collectionVariables.set(\"overlap_arrival\", at(9, 30));",
+                  "pm.collectionVariables.set(\"flight2_departure\", at(12, 0));",
+                  "pm.collectionVariables.set(\"flight2_arrival\", at(12, 30));"
+                ]
+              }
             },
             {
-              "key": "size",
-              "value": "20"
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "const flight = pm.response.json();",
+                  "pm.test(\"Id is a UUID (unique across replicas)\", () => pm.expect(flight.id).to.match(/^[0-9a-f-]{36}$/));",
+                  "pm.test(\"Aircraft model copied from the Aircraft service\", () => pm.expect(flight.aircraftModel).to.eql(\"Boeing 787-10\"));",
+                  "pm.test(\"Starts as SCHEDULED\", () => pm.expect(flight.status).to.eql(\"SCHEDULED\"));",
+                  "pm.test(\"Has HATEOAS links\", () => pm.expect(flight._links[\"change-status\"]).to.exist);",
+                  "pm.collectionVariables.set(\"flight1_id\", flight.id);"
+                ]
+              }
             }
-          ]
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"KIX\",\n  \"departureDateTime\": \"{{flight1_departure}}\",\n  \"arrivalDateTime\": \"{{flight1_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "1.2 Same aircraft, overlapping time, on instance 2 (cross-replica conflict)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Rejected with 409: instance 2 asked instance 1 about conflicts\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Explains why\", () => pm.expect(pm.response.json().message).to.include(\"unavailable\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"NRT\",\n  \"departureDateTime\": \"{{overlap_departure}}\",\n  \"arrivalDateTime\": \"{{overlap_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "1.3 Schedule via instance 2 (forwarded to the owner, instance 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"flight2_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"NRT\",\n  \"departureDateTime\": \"{{flight2_departure}}\",\n  \"arrivalDateTime\": \"{{flight2_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "1.4 List flights on instance 1 (merges both replicas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json()._embedded.flightResponseList.map(f => f.id);",
+                  "pm.test(\"Contains the flight stored on instance 1\", () => pm.expect(ids).to.include(pm.collectionVariables.get(\"flight1_id\")));",
+                  "pm.test(\"Contains the flight stored on instance 2\", () => pm.expect(ids).to.include(pm.collectionVariables.get(\"flight2_id\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights?aircraftId={{aircraft_registration}}",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "aircraftId",
+                  "value": "{{aircraft_registration}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.5 List flights on instance 2 (merges both replicas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json()._embedded.flightResponseList.map(f => f.id);",
+                  "pm.test(\"Contains the flight stored on instance 1\", () => pm.expect(ids).to.include(pm.collectionVariables.get(\"flight1_id\")));",
+                  "pm.test(\"Contains the flight stored on instance 2\", () => pm.expect(ids).to.include(pm.collectionVariables.get(\"flight2_id\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights?aircraftId={{aircraft_registration}}",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "aircraftId",
+                  "value": "{{aircraft_registration}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.6 Peer request (X-Peer-Forwarded) on instance 2 gets its local data only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const ids = (pm.response.json()._embedded || { flightResponseList: [] }).flightResponseList.map(f => f.id);",
+                  "pm.test(\"No flight of an aircraft owned by instance 1\", () => { pm.expect(ids).to.not.include(pm.collectionVariables.get(\"flight1_id\")); pm.expect(ids).to.not.include(pm.collectionVariables.get(\"flight2_id\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Peer-Forwarded",
+                "value": "true"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights?aircraftId={{aircraft_registration}}",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "aircraftId",
+                  "value": "{{aircraft_registration}}"
+                }
+              ]
+            },
+            "description": "What a replica sends to its peers: only its own data, so a query never travels more than one hop (loop prevention). Instance 2 stores no JA-HND flight, because instance 1 owns that aircraft (data isolation between instances)."
+          }
+        },
+        {
+          "name": "1.7 Unknown route (404 from Airports & Routes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"LIS\",\n  \"departureDateTime\": \"{{flight2_departure}}\",\n  \"arrivalDateTime\": \"{{flight2_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "1.8 Unknown aircraft (404 from Aircraft & Maintenance)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"JA-ZZZ\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"KIX\",\n  \"departureDateTime\": \"{{flight2_departure}}\",\n  \"arrivalDateTime\": \"{{flight2_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "1.9 Invalid request body",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\"\n}"
+            }
+          }
         }
-      }
+      ]
+    },
+    {
+      "name": "2. Flight lifecycle",
+      "description": "SCHEDULED -> DELAYED / IN_FLIGHT / CANCELED, DELAYED -> IN_FLIGHT / CANCELED, IN_FLIGHT -> COMPLETED. A change sent to any replica reaches the replica that stores the flight.",
+      "item": [
+        {
+          "name": "2.0 Flight hours before completing anything",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"hours_before\", pm.response.text());"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/aircraft/{{aircraft_registration}}/hours",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "aircraft",
+                "{{aircraft_registration}}",
+                "hours"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "2.1 Via instance 2: IN_FLIGHT (forwarded to the owner)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Status is IN_FLIGHT\", () => pm.expect(pm.response.json().status).to.eql(\"IN_FLIGHT\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights/{{flight2_id}}/status",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flight2_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_FLIGHT\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2.2 Via instance 2: COMPLETED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Status is COMPLETED\", () => pm.expect(pm.response.json().status).to.eql(\"COMPLETED\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights/{{flight2_id}}/status",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flight2_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2.3 Invalid transition COMPLETED -> SCHEDULED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/{{flight2_id}}/status",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flight2_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SCHEDULED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2.4 Delay the other flight on its owner, instance 1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/{{flight1_id}}/status",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flight1_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DELAYED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2.5 Take off",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights/{{flight1_id}}/status",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flight1_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_FLIGHT\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2.6 Land (COMPLETED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights/{{flight1_id}}/status",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flight1_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2.7 Unknown flight id (404 after asking the peers)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 404\", () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/00000000-0000-0000-0000-000000000000/status",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "00000000-0000-0000-0000-000000000000",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "2.8 Status change without token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/{{flight1_id}}/status",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{flight1_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELED\"\n}"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Inter-service endpoints",
+      "description": "Endpoints called by the Aircraft & Maintenance and Airports & Routes services. They are called here without a token, as those services do: allowed because the request comes from the trusted network (localhost). Every figure covers both replicas.",
+      "item": [
+        {
+          "name": "3.1 Total flight hours (both replicas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const added = Number(pm.response.text()) - Number(pm.collectionVariables.get(\"hours_before\"));",
+                  "pm.test(\"Grew by 1.25 h + 0.5 h, one flight on each replica\", () => pm.expect(added).to.be.closeTo(1.75, 0.01));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/aircraft/{{aircraft_registration}}/hours",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "aircraft",
+                "{{aircraft_registration}}",
+                "hours"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.2 Flight hours since a date (LocalDateTime, as the Aircraft service sends it)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Is a number\", () => pm.expect(Number(pm.response.text())).to.be.at.least(1.75));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/aircraft/{{aircraft_registration}}/hours-since?since=2026-01-01T00:00",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "aircraft",
+                "{{aircraft_registration}}",
+                "hours-since"
+              ],
+              "query": [
+                {
+                  "key": "since",
+                  "value": "2026-01-01T00:00"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.3 Aircraft has flights",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"true\", () => pm.expect(pm.response.text()).to.eql(\"true\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/aircraft/{{aircraft_registration}}/exists",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "aircraft",
+                "{{aircraft_registration}}",
+                "exists"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.4 Aircraft timeline",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const timeline = pm.response.json();",
+                  "pm.test(\"Field names expected by the Aircraft service\", () => pm.expect(timeline[0]).to.have.all.keys(\"departureTime\", \"arrivalTime\", \"origin\", \"destination\"));",
+                  "pm.test(\"Chronological\", () => pm.expect(timeline.map(f => f.departureTime)).to.eql(timeline.map(f => f.departureTime).sort()));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/aircraft/{{aircraft_registration}}/timeline",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "aircraft",
+                "{{aircraft_registration}}",
+                "timeline"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.5 Top aircraft models by flight hours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const top = pm.response.json();",
+                  "pm.test(\"modelName and whole-number value\", () => { pm.expect(top[0]).to.have.all.keys(\"modelName\", \"value\"); pm.expect(Number.isInteger(top[0].value)).to.be.true; });",
+                  "pm.test(\"At most 3\", () => pm.expect(top.length).to.be.at.most(3));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/top-models/hours?limit=3",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "top-models",
+                "hours"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "3"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.6 Top aircraft models by number of flights",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const top = pm.response.json();",
+                  "pm.test(\"modelName and whole-number value\", () => { pm.expect(top[0]).to.have.all.keys(\"modelName\", \"value\"); pm.expect(Number.isInteger(top[0].value)).to.be.true; });",
+                  "pm.test(\"At most 3\", () => pm.expect(top.length).to.be.at.most(3));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/top-models/assignments?limit=3",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "top-models",
+                "assignments"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "3"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.7 Flights on a route (called by Airports & Routes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"At least the flight scheduled in 1.1\", () => pm.expect(Number(pm.response.text())).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/count?origin=HND&destination=KIX",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "count"
+              ],
+              "query": [
+                {
+                  "key": "origin",
+                  "value": "HND"
+                },
+                {
+                  "key": "destination",
+                  "value": "KIX"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.8 Conflict check (called by peer replicas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Instance 1 reports its overlapping flight\", () => pm.expect(pm.response.text()).to.eql(\"true\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/aircraft/{{aircraft_registration}}/conflicts?departure={{overlap_departure}}&arrival={{overlap_arrival}}",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "aircraft",
+                "{{aircraft_registration}}",
+                "conflicts"
+              ],
+              "query": [
+                {
+                  "key": "departure",
+                  "value": "{{overlap_departure}}"
+                },
+                {
+                  "key": "arrival",
+                  "value": "{{overlap_arrival}}"
+                }
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "3.9 Aircraft service shows the hours read from this service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Not zero any more\", () => pm.expect(pm.response.json().totalOperationalHours).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{aircraft_url}}/api/aircrafts/{{aircraft_registration}}/operational-hours",
+              "host": [
+                "{{aircraft_url}}"
+              ],
+              "path": [
+                "api",
+                "aircrafts",
+                "{{aircraft_registration}}",
+                "operational-hours"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Reports and import",
+      "description": "",
+      "item": [
+        {
+          "name": "4.1 Utilization report on instance 2 (merges both replicas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json()._embedded.flightUtilizationResponseList;",
+                  "const route = (o, d) => rows.find(r => r.origin === o && r.destination === d);",
+                  "pm.test(\"Has the route completed on instance 1\", () => pm.expect(route(\"HND\", \"KIX\")).to.exist);",
+                  "pm.test(\"Has the route completed on instance 2\", () => pm.expect(route(\"HND\", \"NRT\")).to.exist);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights/reports/utilization?page=0&size=20",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "reports",
+                "utilization"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.2 Import flights from CSV",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "pm.test(\"Rows imported, or already loaded by a previous run\", () => {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([201, 207, 400]);",
+                  "    if (pm.response.code === 400) {",
+                  "        pm.expect(body.errors.every(e => e.errorMessage.includes(\"unavailable\"))).to.be.true;",
+                  "    }",
+                  "});",
+                  "pm.test(\"Reports counts\", () => pm.expect(body.successfulCount).to.be.a(\"number\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/import",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "import"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "docs/postman/csv-imports/5_flights.csv"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Assignment 2 - CQRS and AMQP",
+      "description": "Needs the message broker (RabbitMQ, or the embedded broker described in COMMANDS.md) and every service started with messaging on.\n\nCommands (POST/PATCH /api/flights) change the write model of the replica that owns the flight and publish an event on the aisafe.exchange topic exchange. Every replica has its own durable queue, so each read model (/api/v2/flights) receives the flights of the whole cluster. The read side is eventually consistent: requests that read it wait a moment first.\n\nIt also shows messaging between services: flight.completed is consumed by Aircraft & Maintenance, and the aircraft.status.changed events of that service reach this one.",
+      "item": [
+        {
+          "name": "5.1 Command: schedule a flight on instance 1",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const day = new Date(Date.UTC(2035, 0, 1) + Math.floor(Math.random() * 3000) * 86400000);",
+                  "pm.collectionVariables.set(\"a2_departure\", new Date(day.getTime() + 15 * 3600000).toISOString().replace(\".000Z\", \"Z\"));",
+                  "pm.collectionVariables.set(\"a2_arrival\", new Date(day.getTime() + 17 * 3600000).toISOString().replace(\".000Z\", \"Z\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set(\"a2_flight_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"KIX\",\n  \"departureDateTime\": \"{{a2_departure}}\",\n  \"arrivalDateTime\": \"{{a2_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "5.2 Query: the flight in the read model of instance 2",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(() => {}, 1500); // eventual consistency: give the broker a moment"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const view = pm.response.json();",
+                  "pm.test(\"Projected as SCHEDULED, revision 0\", () => { pm.expect(view.status).to.eql(\"SCHEDULED\"); pm.expect(view.revision).to.eql(0); });",
+                  "pm.test(\"Pre-computed duration\", () => pm.expect(view.durationHours).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/v2/flights/{{a2_flight_id}}",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "flights",
+                "{{a2_flight_id}}"
+              ]
+            },
+            "description": "Instance 2 never handled this flight: its read model received it through its own queue."
+          }
+        },
+        {
+          "name": "5.3 Query: search the read model of instance 2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Contains the new flight\", () => pm.expect(pm.response.json().content.map(f => f.flightId)).to.include(pm.collectionVariables.get(\"a2_flight_id\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/v2/flights?aircraftId={{aircraft_registration}}&status=SCHEDULED&size=100",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "aircraftId",
+                  "value": "{{aircraft_registration}}"
+                },
+                {
+                  "key": "status",
+                  "value": "SCHEDULED"
+                },
+                {
+                  "key": "size",
+                  "value": "100"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.4 Command on instance 2: IN_FLIGHT (forwarded to the owner, instance 1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights/{{a2_flight_id}}/status",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{a2_flight_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_FLIGHT\"\n}"
+            }
+          }
+        },
+        {
+          "name": "5.5 Command on instance 2: COMPLETED",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights/{{a2_flight_id}}/status",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "{{a2_flight_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "5.6 Query: instance 1 read model shows COMPLETED, revision 2",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(() => {}, 1500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const view = pm.response.json();",
+                  "pm.test(\"COMPLETED\", () => pm.expect(view.status).to.eql(\"COMPLETED\"));",
+                  "pm.test(\"Revision 2 (two status changes)\", () => pm.expect(view.revision).to.eql(2));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/v2/flights/{{a2_flight_id}}",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "flights",
+                "{{a2_flight_id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.7 Query: pre-aggregated activity of the aircraft (instance 2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const activity = pm.response.json();",
+                  "pm.test(\"Has completed flights and hours\", () => { pm.expect(activity.completedFlights).to.be.at.least(1); pm.expect(activity.completedHours).to.be.at.least(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/v2/flights/aircraft/{{aircraft_registration}}/activity",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "flights",
+                "aircraft",
+                "{{aircraft_registration}}",
+                "activity"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.8 GET /api/v2/unicorns (mandatory mock endpoint)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "const moods = pm.response.json();",
+                  "pm.test(\"JSON list of airplane moods\", () => { pm.expect(moods).to.be.an(\"array\").that.is.not.empty; pm.expect(moods[0]).to.include.keys(\"registrationNumber\", \"mood\", \"sparkleLevel\", \"moodReason\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/v2/unicorns",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "unicorns"
+              ]
+            },
+            "description": "Moods are computed by the projector when events arrive and stored in the read model; this request only reads them.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "5.9 GET /api/v2/unicorns/{registration}",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has a mood\", () => pm.expect(pm.response.json().mood).to.be.a(\"string\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/v2/unicorns/{{aircraft_registration}}",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "unicorns",
+                "{{aircraft_registration}}"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "5.10 Aircraft & Maintenance: put JA-NRT under maintenance (publishes aircraft.status.changed)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{aircraft_url}}/api/aircrafts/JA-NRT",
+              "host": [
+                "{{aircraft_url}}"
+              ],
+              "path": [
+                "api",
+                "aircrafts",
+                "JA-NRT"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"UNDER_MAINTENANCE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "5.11 Query: JA-NRT mood on instance 2 is UNDER_CARE (event from another service)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "setTimeout(() => {}, 1500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"UNDER_CARE\", () => pm.expect(pm.response.json().mood).to.eql(\"UNDER_CARE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/v2/unicorns/JA-NRT",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "unicorns",
+                "JA-NRT"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "5.12 Command: JA-NRT is refused from the local aircraft catalog",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"Because of the maintenance\", () => pm.expect(pm.response.json().message).to.include(\"UNDER_MAINTENANCE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "description": "The status came by AMQP into the local catalog, so no synchronous call to the Aircraft service is needed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"JA-NRT\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"NRT\",\n  \"departureDateTime\": \"{{a2_departure}}\",\n  \"arrivalDateTime\": \"{{a2_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "5.13 Aircraft & Maintenance: JA-NRT back to AVAILABLE (cleanup)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{aircraft_url}}/api/aircrafts/JA-NRT",
+              "host": [
+                "{{aircraft_url}}"
+              ],
+              "path": [
+                "api",
+                "aircrafts",
+                "JA-NRT"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"AVAILABLE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "5.14 Rebuild the read model of instance 2 from the write models (admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Received the flights of the cluster\", () => pm.expect(pm.response.json().flightsReceived).to.be.at.least(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{instance2_url}}/api/v2/flights/read-model/rebuild",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "v2",
+                "flights",
+                "read-model",
+                "rebuild"
+              ]
+            },
+            "description": "Recovery path when events were lost: reads the write models of all replicas through the P2P search and re-projects them. Already known flights are skipped by revision."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Manual - Fault tolerance",
+      "description": "Not part of a normal run: each request needs a service to be stopped first, as its description says.",
+      "item": [
+        {
+          "name": "M.1 Instance 2 stopped: listing still answers with local data",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights?aircraftId={{aircraft_registration}}",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ],
+              "query": [
+                {
+                  "key": "aircraftId",
+                  "value": "{{aircraft_registration}}"
+                }
+              ]
+            },
+            "description": "Stop instance 2 (8072) first. Availability over consistency: the flights of instance 1 are returned with 200."
+          }
+        },
+        {
+          "name": "M.2 Instance 2 stopped: unknown flight answers 503, not 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 503\", () => pm.response.to.have.status(503));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights/00000000-0000-0000-0000-000000000000/status",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights",
+                "00000000-0000-0000-0000-000000000000",
+                "status"
+              ]
+            },
+            "description": "Stop instance 2 (8072) first. The flight might be on the replica that could not be asked, so \"not found\" would be a guess.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELED\"\n}"
+            }
+          }
+        },
+        {
+          "name": "M.3 Aircraft service stopped: an aircraft never seen answers 503 with Retry-After",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Valid dates even when folder 1 was not run.",
+                  "const day = new Date(Date.UTC(2027, 0, 1) + Math.floor(Math.random() * 3000) * 86400000);",
+                  "pm.collectionVariables.set(\"flight2_departure\", new Date(day.getTime() + 12 * 3600000).toISOString().replace(\".000Z\", \"Z\"));",
+                  "pm.collectionVariables.set(\"flight2_arrival\", new Date(day.getTime() + 12.5 * 3600000).toISOString().replace(\".000Z\", \"Z\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 503\", () => pm.response.to.have.status(503));",
+                  "pm.test(\"Retry-After header\", () => pm.response.to.have.header(\"Retry-After\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "description": "Stop every Aircraft & Maintenance instance first (8081-8083). JA-QQQ is not in the local catalog, so each instance is tried in order before giving up.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"JA-QQQ\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"KIX\",\n  \"departureDateTime\": \"{{flight2_departure}}\",\n  \"arrivalDateTime\": \"{{flight2_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "M.5 Instance 1 stopped: scheduling an aircraft it owns answers 503",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const day = new Date(Date.UTC(2041, 0, 1) + Math.floor(Math.random() * 3000) * 86400000);",
+                  "pm.collectionVariables.set(\"m4_departure\", new Date(day.getTime() + 6 * 3600000).toISOString().replace(\".000Z\", \"Z\"));",
+                  "pm.collectionVariables.set(\"m4_arrival\", new Date(day.getTime() + 7 * 3600000).toISOString().replace(\".000Z\", \"Z\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 503\", () => pm.response.to.have.status(503));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance2_url}}/api/flights",
+              "host": [
+                "{{instance2_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "description": "Stop instance 1 (8071) first. JA-HND belongs to instance 1; instance 2 cannot check its flights, so it refuses instead of risking two flights at once for one aircraft (consistency over availability for this rule). Reads keep working.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"KIX\",\n  \"departureDateTime\": \"{{m4_departure}}\",\n  \"arrivalDateTime\": \"{{m4_arrival}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "M.4 Aircraft service stopped: a recently seen aircraft is still scheduled (local catalog)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const day = new Date(Date.UTC(2040, 0, 1) + Math.floor(Math.random() * 3000) * 86400000);",
+                  "pm.collectionVariables.set(\"m4_departure\", new Date(day.getTime() + 6 * 3600000).toISOString().replace(\".000Z\", \"Z\"));",
+                  "pm.collectionVariables.set(\"m4_arrival\", new Date(day.getTime() + 7 * 3600000).toISOString().replace(\".000Z\", \"Z\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{instance1_url}}/api/flights",
+              "host": [
+                "{{instance1_url}}"
+              ],
+              "path": [
+                "api",
+                "flights"
+              ]
+            },
+            "description": "Stop every Aircraft & Maintenance instance first, with messaging on. The aircraft was seen less than 10 minutes ago (event or look-up), so scheduling does not depend on the Aircraft service being up: the asynchronous integration removed that temporal coupling.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"aircraftId\": \"{{aircraft_registration}}\",\n  \"originIataCode\": \"HND\",\n  \"destinationIataCode\": \"KIX\",\n  \"departureDateTime\": \"{{m4_departure}}\",\n  \"arrivalDateTime\": \"{{m4_arrival}}\"\n}"
+            }
+          }
+        }
+      ]
     }
   ]
 }

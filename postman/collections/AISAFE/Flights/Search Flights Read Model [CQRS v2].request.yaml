@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/v2/flights?aircraftId={{aircraft_registration}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Has content", () => pm.expect(pm.response.json().content).to.be.an("array"));
+    language: text/javascript
+order: 5000

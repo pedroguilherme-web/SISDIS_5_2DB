@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -20,84 +21,63 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class FlightLocalSearchProviderTest {
+    private static final OffsetDateTime T0 = OffsetDateTime.of(2026, 12, 1, 8, 0, 0, 0, ZoneOffset.UTC);
 
     @Mock
-    private ScheduledFlightRepository scheduledFlightRepository;
+    private ScheduledFlightRepository repository;
 
     private FlightLocalSearchProvider provider;
 
+    private final ScheduledFlight lisOpoCompleted = new ScheduledFlight("a", T0, T0.plusHours(1), FlightStatus.COMPLETED, "LIS", "OPO", "CS-TRP", "A320");
+    private final ScheduledFlight opoMadScheduled = new ScheduledFlight("b", T0.plusDays(1), T0.plusDays(1).plusHours(1), FlightStatus.SCHEDULED, "OPO", "MAD", "CS-TRP", "A320");
+
     @BeforeEach
     void setUp() {
-        provider = new FlightLocalSearchProvider(scheduledFlightRepository);
+        provider = new FlightLocalSearchProvider(repository);
     }
 
     @Test
-    void ensureSearchLocalReturnsEmptyArrayWhenPathIsNull() {
-        String result = provider.searchLocal(null);
-        assertEquals("[]", result);
-        verifyNoInteractions(scheduledFlightRepository);
+    void ensureEmptyArrayForNullOrForeignPath() {
+        assertEquals("[]", provider.searchLocal(null));
+        assertEquals("[]", provider.searchLocal("/api/aircrafts"));
+        verifyNoInteractions(repository);
     }
 
     @Test
-    void ensureSearchLocalReturnsEmptyArrayWhenPathDoesNotStartWithApiFlights() {
-        String result = provider.searchLocal("/api/airports/search");
-        assertEquals("[]", result);
-        verifyNoInteractions(scheduledFlightRepository);
+    void ensureFiltersByAircraftUsingTheIndexedQuery() {
+        when(repository.findByAircraftRegistration("CS-TRP")).thenReturn(List.of(lisOpoCompleted, opoMadScheduled));
+
+        String json = provider.searchLocal("/api/flights?aircraftId=cs-trp");
+
+        assertTrue(json.contains("\"id\":\"a\"") && json.contains("\"id\":\"b\""));
+        verify(repository, never()).findAll();
     }
 
     @Test
-    void ensureSearchLocalReturnsSerializedFlightsWhenPathIsValid() {
-        OffsetDateTime departure = OffsetDateTime.parse("2026-11-01T10:00:00Z");
-        OffsetDateTime arrival = OffsetDateTime.parse("2026-11-01T12:00:00Z");
+    void ensureFiltersByOriginAndStatus() {
+        when(repository.findAll()).thenReturn(List.of(lisOpoCompleted, opoMadScheduled));
 
-        ScheduledFlight flight = new ScheduledFlight(
-                1L,
-                departure,
-                arrival,
-                FlightStatus.SCHEDULED,
-                "OPO",
-                "LIS",
-                "CS-TPA"
-        );
+        String json = provider.searchLocal("/api/flights?origin=LIS&status=completed");
 
-        when(scheduledFlightRepository.findAll()).thenReturn(List.of(flight));
-
-        String json = provider.searchLocal("/api/flights/aircraft/CS-TPA");
-
-        assertNotNull(json);
-        assertTrue(json.contains("\"id\":1"));
-        assertTrue(json.contains("OPO"));
-        assertTrue(json.contains("LIS"));
-        assertTrue(json.contains("CS-TPA"));
-        assertTrue(json.contains("SCHEDULED"));
-        verify(scheduledFlightRepository, times(1)).findAll();
+        assertTrue(json.contains("\"id\":\"a\""));
+        assertFalse(json.contains("\"id\":\"b\""));
     }
 
     @Test
-    void ensureSearchLocalReturnsEmptyJsonArrayWhenNoFlightsExist() {
-        when(scheduledFlightRepository.findAll()).thenReturn(List.of());
+    void ensureDatesAreSerializedAsIsoStrings() {
+        when(repository.findAll()).thenReturn(List.of(lisOpoCompleted));
 
-        String json = provider.searchLocal("/api/flights");
-
-        assertEquals("[]", json);
-        verify(scheduledFlightRepository, times(1)).findAll();
+        assertTrue(provider.searchLocal("/api/flights").contains("\"departureDateTime\":\"2026-12-01T08:00:00Z\""));
     }
 
     @Test
-    void ensureSearchLocalThrowsIllegalStateExceptionOnJsonProcessingException() throws JsonProcessingException {
-        ObjectMapper mockMapper = mock(ObjectMapper.class);
-        FlightLocalSearchProvider providerWithMockMapper =
-                new FlightLocalSearchProvider(scheduledFlightRepository, mockMapper);
+    void ensureIllegalStateExceptionOnSerializationFailure() throws JsonProcessingException {
+        ObjectMapper failing = mock(ObjectMapper.class);
+        when(failing.writeValueAsString(any())).thenThrow(new JsonProcessingException("boom") {});
+        when(repository.findAll()).thenReturn(List.of());
 
-        when(scheduledFlightRepository.findAll()).thenReturn(List.of());
-        when(mockMapper.writeValueAsString(any()))
-                .thenThrow(new JsonProcessingException("Simulated JSON failure") {});
+        FlightLocalSearchProvider withFailingMapper = new FlightLocalSearchProvider(repository, failing);
 
-        IllegalStateException ex = assertThrows(
-                IllegalStateException.class,
-                () -> providerWithMockMapper.searchLocal("/api/flights")
-        );
-
-        assertEquals("Failed to serialize local flight results", ex.getMessage());
+        assertThrows(IllegalStateException.class, () -> withFailingMapper.searchLocal("/api/flights"));
     }
 }
