@@ -1,6 +1,7 @@
 
 package aisafe;
 
+import org.junit.jupiter.api.Tag;
 import aisafe.p2p.DistributedSearchRequest;
 import aisafe.p2p.PeerClient;
 import aisafe.p2p.PeerIdentity;
@@ -14,6 +15,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+@Tag("manual-integration")
 class P2PRealCommunicationTest {
 
     @Test
