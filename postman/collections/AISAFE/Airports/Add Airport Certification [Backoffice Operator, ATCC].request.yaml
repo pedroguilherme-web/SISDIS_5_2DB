@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{base_url}}/api/airports/{{airport_iata}}/certifications"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"aircraftModelName\": \"{{aircraft_model_name}}\"\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      var body = pm.response.json();
+      pm.test("Has airportIataCode", () => pm.expect(body.airportIataCode).to.exist);
+      pm.test("Has aircraftModelName", () => pm.expect(body.aircraftModelName).to.exist);
+      pm.test("Has HATEOAS _links", () => {
+          pm.expect(body._links).to.exist;
+      });
+    language: text/javascript
+order: 4000

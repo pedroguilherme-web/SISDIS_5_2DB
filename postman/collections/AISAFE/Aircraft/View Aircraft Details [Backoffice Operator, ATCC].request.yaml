@@ -1,0 +1,14 @@
+$kind: http-request
+url: "{{base_url}}/api/aircrafts/{{aircraft_registration}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      var jsonData = pm.response.json();
+      pm.test("Registration matches", () => pm.expect(jsonData.registrationNumber).to.equal(pm.collectionVariables.get("aircraft_registration")));
+      if (jsonData.version !== undefined) {
+          pm.collectionVariables.set("aircraft_version", String(jsonData.version));
+      }
+    language: text/javascript
+order: 3000

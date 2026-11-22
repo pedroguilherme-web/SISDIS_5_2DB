@@ -1,0 +1,11 @@
+$kind: http-request
+name: Get Maintenance Cost by Model [ATCC, Backoffice Operator, Maintenance Supervisor, Admin]
+url: "{{base_url}}/api/maintenance/records/cost/model/{{aircraft_model_name}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Has total cost", () => pm.expect(pm.response.json().totalCost).to.exist);
+    language: text/javascript
+order: 17000

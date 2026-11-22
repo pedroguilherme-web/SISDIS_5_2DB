@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/airports/ZZZ"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 404", () => pm.response.to.have.status(404));
+      pm.test("Has error message", () => pm.expect(pm.response.json().message).to.be.a('string'));
+    language: text/javascript
+order: 6000

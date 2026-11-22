@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/api/flights/reports/utilization?page=0&size=5&startDate=2026-01-01T00:00:00Z"
+method: GET
+queryParams:
+  page: "0"
+  size: "5"
+  startDate: 2026-01-01T00:00:00Z
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 200", () => pm.response.to.have.status(200));
+    language: text/javascript
+order: 3000

@@ -12,8 +12,11 @@ import aisafe.airports.domain.Gate;
 import aisafe.airports.domain.Runway;
 import aisafe.airports.domain.Service;
 import aisafe.airports.domain.Terminal;
+import aisafe.airports.infrastructure.messaging.AirportEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Use case for registering a new airport in the system.
@@ -21,9 +24,19 @@ import java.util.List;
 @UseCase
 public class RegisterAirportUseCase {
     private final AirportRepository airportRepository;
+    private final Optional<AirportEventPublisher> eventPublisher;
 
     public RegisterAirportUseCase(AirportRepository airportRepository) {
+        this(airportRepository, Optional.empty());
+    }
+
+    @Autowired
+    public RegisterAirportUseCase(
+            AirportRepository airportRepository,
+            Optional<AirportEventPublisher> eventPublisher) {
         this.airportRepository = airportRepository;
+        this.eventPublisher =
+                eventPublisher == null ? Optional.empty() : eventPublisher;
     }
 
     /**
@@ -66,6 +79,9 @@ public class RegisterAirportUseCase {
 
         airportRepository.save(airport);
         Long version = airportRepository.findVersionFor(new IataCode(request.iataCode()));
-        return AirportResponse.from(airport, version);
+        AirportResponse response = AirportResponse.from(airport, version);
+        eventPublisher.ifPresent(publisher ->
+                publisher.publish(response, "AirportRegistered"));
+        return response;
     }
 }

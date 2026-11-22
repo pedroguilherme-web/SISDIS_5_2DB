@@ -1,0 +1,12 @@
+$kind: http-request
+url: "{{base_url}}/api/routes/{{route_origin}}/{{route_destination}}/deactivate"
+method: PATCH
+headers:
+  If-Match: "{{route_version}}"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Route is deactivated", () => pm.expect(pm.response.json().status).to.equal("INACTIVE"));
+    language: text/javascript
+order: 5000

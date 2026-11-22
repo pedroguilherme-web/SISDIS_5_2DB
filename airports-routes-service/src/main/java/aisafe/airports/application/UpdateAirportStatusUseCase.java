@@ -8,8 +8,11 @@ import aisafe.airports.domain.AirportRepository;
 import aisafe.airports.domain.AirportStatus;
 import aisafe.airports.domain.IataCode;
 import aisafe.shared.domain.ConcurrencyException;
+import aisafe.airports.infrastructure.messaging.AirportEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Use case for updating the details of an existing airport
@@ -17,9 +20,19 @@ import java.util.Objects;
 @UseCase
 public class UpdateAirportStatusUseCase {
     private final AirportRepository airportRepository;
+    private final Optional<AirportEventPublisher> eventPublisher;
 
     public UpdateAirportStatusUseCase(AirportRepository airportRepository) {
+        this(airportRepository, Optional.empty());
+    }
+
+    @Autowired
+    public UpdateAirportStatusUseCase(
+            AirportRepository airportRepository,
+            Optional<AirportEventPublisher> eventPublisher) {
         this.airportRepository = airportRepository;
+        this.eventPublisher =
+                eventPublisher == null ? Optional.empty() : eventPublisher;
     }
 
     /**
@@ -42,6 +55,9 @@ public class UpdateAirportStatusUseCase {
         airport.changeStatus(status);
         airportRepository.save(airport);
         Long newVersion = airportRepository.findVersionFor(code);
-        return AirportResponse.from(airport, newVersion);
+        AirportResponse response = AirportResponse.from(airport, newVersion);
+        eventPublisher.ifPresent(publisher ->
+                publisher.publish(response, "AirportStatusUpdated"));
+        return response;
     }
 }

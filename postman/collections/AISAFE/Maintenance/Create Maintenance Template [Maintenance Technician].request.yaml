@@ -1,0 +1,27 @@
+$kind: http-request
+url: "{{base_url}}/api/maintenance/templates"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"name\": \"100h Engine Check\",\r
+
+    \    \"templateType\": \"INSPECTION\",\r
+
+    \    \"applicableModels\": [\"Boeing 737 MAX\"],\r
+
+    \    \"checklist\": [\"Check oil levels\", \"Inspect fan blades\", \"Test fuel system\"],\r
+
+    \    \"intervalFlightHours\": 100,\r
+
+    \    \"intervalDays\": 30\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      pm.test("Has name", () => pm.expect(pm.response.json().name).to.be.a('string'));
+    language: text/javascript
+order: 1000

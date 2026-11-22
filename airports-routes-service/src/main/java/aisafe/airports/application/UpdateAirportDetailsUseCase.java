@@ -12,9 +12,12 @@ import aisafe.airports.domain.Gate;
 import aisafe.airports.domain.Service;
 import aisafe.airports.domain.Terminal;
 import aisafe.shared.domain.ConcurrencyException;
+import aisafe.airports.infrastructure.messaging.AirportEventPublisher;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Use case for updating the details of an existing airport
@@ -22,9 +25,19 @@ import java.util.Objects;
 @UseCase
 public class UpdateAirportDetailsUseCase {
     private final AirportRepository airportRepository;
+    private final Optional<AirportEventPublisher> eventPublisher;
 
     public UpdateAirportDetailsUseCase(AirportRepository airportRepository) {
+        this(airportRepository, Optional.empty());
+    }
+
+    @Autowired
+    public UpdateAirportDetailsUseCase(
+            AirportRepository airportRepository,
+            Optional<AirportEventPublisher> eventPublisher) {
         this.airportRepository = airportRepository;
+        this.eventPublisher =
+                eventPublisher == null ? Optional.empty() : eventPublisher;
     }
 
     /**
@@ -64,6 +77,9 @@ public class UpdateAirportDetailsUseCase {
 
         airportRepository.save(airport);
         Long newVersion = airportRepository.findVersionFor(code);
-        return AirportResponse.from(airport, newVersion);
+        AirportResponse response = AirportResponse.from(airport, newVersion);
+        eventPublisher.ifPresent(publisher ->
+                publisher.publish(response, "AirportDetailsUpdated"));
+        return response;
     }
 }

@@ -1,0 +1,21 @@
+$kind: http-request
+url: "{{base_url}}/api/maintenance/records/{{maintenance_record_id}}"
+method: PATCH
+headers:
+  If-Match: "{{maintenance_record_version}}"
+body:
+  type: json
+  content: "{\r
+
+    \    \"status\": \"IN_PROGRESS\",\r
+
+    \    \"notes\": \"Inspection started, all systems nominal\"\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Status updated", () => pm.expect(pm.response.json().status).to.equal("IN_PROGRESS"));
+    language: text/javascript
+order: 4000

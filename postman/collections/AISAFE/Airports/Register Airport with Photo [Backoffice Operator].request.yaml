@@ -1,0 +1,50 @@
+$kind: http-request
+url: "{{base_url}}/api/airports"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: text
+      key: iataCode
+      value: OPO
+    - type: text
+      key: name
+      value: Francisco Sa Carneiro Airport
+    - type: text
+      key: city
+      value: Porto
+    - type: text
+      key: country
+      value: Portugal
+    - type: text
+      key: region
+      value: Europe
+    - type: text
+      key: timezone
+      value: Europe/Lisbon
+    - type: text
+      key: latitude
+      value: "41.23"
+    - type: text
+      key: longitude
+      value: "-8.67"
+    - type: text
+      key: runwayName
+      value: 17/35
+    - type: text
+      key: runwayLength
+      value: "3480"
+    - type: text
+      key: runwayOrientation
+      value: 170/350
+    - type: file
+      key: photo
+      src:
+        - ""
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      pm.test("Has IATA code", () => pm.expect(pm.response.json().iataCode).to.exist);
+    language: text/javascript
+order: 1000

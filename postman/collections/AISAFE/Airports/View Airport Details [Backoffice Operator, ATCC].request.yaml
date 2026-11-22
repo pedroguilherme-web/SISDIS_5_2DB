@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{base_url}}/api/airports/{{airport_iata}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Has IATA code", () => pm.expect(pm.response.json().iataCode).to.exist);
+      pm.test("Has runways", () => pm.expect(pm.response.json().runways).to.be.an('array').that.is.not.empty);
+      pm.test("Has HATEOAS _links", () => {
+          const body = pm.response.json();
+          pm.expect(body._links).to.exist;
+          pm.expect(body._links.self).to.exist;
+      });
+      pm.collectionVariables.set("airport_version", pm.response.json().version);
+    language: text/javascript
+order: 5000

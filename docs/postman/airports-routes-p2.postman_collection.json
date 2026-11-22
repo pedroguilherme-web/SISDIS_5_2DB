@@ -1,0 +1,535 @@
+{
+  "info": {
+    "_postman_id": "71836e6c-bd09-4a2d-b7fd-83d6d470f552",
+    "name": "AISafe Airports & Routes - P2",
+    "description": "P2 test suite for Airports & Routes Service.\n\nCovers: Authentication, CQRS (write /api/v1 + read /api/v2), P2P forwarding, AMQP resilience, and the mandatory /api/v2/unicorns CQRS read endpoint. Unicorns reads are empty until events arrive; no local demo seed is used.\n\nRun order: Authentication → CQRS airports → P2P forwarding → AMQP → CQRS Unicorns.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url_1",
+      "value": "http://localhost:8092"
+    },
+    {
+      "key": "base_url_2",
+      "value": "http://localhost:8093"
+    },
+    {
+      "key": "jwt_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('login returns 200 and JWT', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().token).to.be.a('string').and.not.empty;",
+                  "  pm.collectionVariables.set('jwt_token', pm.response.json().token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url_1}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Reject missing JWT",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url_1}}/api/v1/airports/LIS"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('missing JWT is unauthorized', function () {",
+                  "  pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CQRS airports",
+      "description": "Demonstrates the CQRS write/read split for airports.\n\nWrite side: POST/PATCH/PUT under /api/v1/airports — commands that mutate the write-model aggregate and publish AirportChangedEvent to RabbitMQ.\nRead side: GET /api/v2/airports — queries the airport_read_model projection table, populated asynchronously by AirportReadModelProjectionListener.\n\nRabbitMQ and AMQP_ENABLED=true are required to observe asynchronous projection updates.",
+      "item": [
+        {
+          "name": "Create airport on instance 1",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/airports",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"iataCode\": \"P2T\",\n  \"name\": \"P2 Test Airport\",\n  \"city\": \"Porto\",\n  \"country\": \"Portugal\",\n  \"region\": \"Europe\",\n  \"timezone\": \"Europe/Lisbon\",\n  \"latitude\": 41.24,\n  \"longitude\": -8.68,\n  \"runways\": [{ \"name\": \"17/35\", \"length\": 2800, \"orientation\": \"170/350\" }]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('command creates airport', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create destination airport",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/airports",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"iataCode\": \"P2U\",\n  \"name\": \"P2 Route Destination\",\n  \"city\": \"Lisbon\",\n  \"country\": \"Portugal\",\n  \"region\": \"Europe\",\n  \"timezone\": \"Europe/Lisbon\",\n  \"latitude\": 38.77,\n  \"longitude\": -9.13,\n  \"runways\": [{ \"name\": \"03/21\", \"length\": 3000, \"orientation\": \"030/210\" }]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('destination airport is created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query read model on instance 1",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v2/airports?name=P2"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('CQRS read model responds', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().content).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query read model on instance 2",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": "{{base_url_2}}/api/v2/airports?name=P2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "CQRS routes",
+      "description": "Route commands publish RouteChangedEvent to aisafe.routes.events. Each instance projects events to its own route_read_model through a durable queue. Allow a short delay after commands when AMQP is enabled.",
+      "item": [
+        {
+          "name": "Create route (v1 command)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/routes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"originIataCode\": \"P2T\",\n  \"destinationIataCode\": \"P2U\",\n  \"estimatedFlightTime\": 45,\n  \"minimumRange\": 300.0,\n  \"minimumCapacity\": 150,\n  \"createdBy\": \"admin\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('route command creates route and returns version', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "  pm.collectionVariables.set('route_version', pm.response.json().version);",
+                  "  pm.expect(pm.collectionVariables.get('route_version')).to.not.be.undefined;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Query route read model (v2)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v2/routes?origin=P2T&destination=P2U"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('route read model responds with a page', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.json().content).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update route (v1 command)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{route_version}}"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/routes/P2T/P2U",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"estimatedFlightTime\": 50, \"minimumRange\": 320.0, \"minimumCapacity\": 160 }"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('route update succeeds and advances version', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.collectionVariables.set('route_version', pm.response.json().version);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Deactivate route (v1 command)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "If-Match",
+                "value": "{{route_version}}"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/routes/P2T/P2U/deactivate",
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "pm.test('route deactivation succeeds', function () {",
+                    "  pm.response.to.have.status(200);",
+                    "  pm.collectionVariables.set('route_version', pm.response.json().version);",
+                    "});"
+                  ],
+                  "type": "text/javascript"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Delete route (v1 command)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/routes/P2T/P2U"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('route deletion succeeds', function () {",
+                  "  pm.expect([200, 204]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "P2P forwarding",
+      "item": [
+        {
+          "name": "Forward local miss from instance 1",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/airports/P2T"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('remote peer result or clean not found', function () {",
+                  "  pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 on absent airport",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/airports/ZZZ"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('absent airport returns 404', function () { pm.response.to.have.status(404); });"
+                ]
+              },
+              "type": "text/javascript"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AMQP",
+      "description": "Triggers an airport command that publishes an AirportChangedEvent to RabbitMQ.\n\nWith AMQP_ENABLED=true and a live broker, the event is consumed by AirportReadModelProjectionListener on each instance and the airport_read_model is updated. Without AMQP the write succeeds but the read model stays stale — demonstrating BASE / graceful degradation.",
+      "item": [
+        {
+          "name": "Update airport status on instance 1",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v1/airports/P2T/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"status\": \"UNDER_MAINTENANCE\" }"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('status update succeeds even without broker', function () {",
+                  "  pm.expect([200, 204]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "CQRS Unicorns — /api/v2/unicorns",
+      "description": "Mandatory P2 endpoint: GET /api/v2/unicorns\n\nThis is a pure CQRS query-side endpoint. It reads from the airplane_mood_read_model projection table — a denormalised read model that is NEVER queried from the Aircraft & Maintenance write-model aggregate.\n\nCQRS data flow:\n  1. Aircraft & Maintenance Service publishes AircraftMoodChangedEvent {eventId, correlationId, registration, moodStatus, timestamp} to the RabbitMQ topic exchange aisafe.aircraft.events (routing key aircraft.mood.changed).\n  2. AircraftMoodProjectionListener (this service) consumes the message and upserts the airplane_mood_read_model table. Out-of-order protection: older events (occurredAt <= current updatedAt) are ignored.\n  3. UnicornController serves GET /api/v2/unicorns by reading only from that projection table.\n\nWhen AMQP is disabled or no message has been consumed, the projection is empty.",
+      "item": [
+        {
+          "name": "GET airplane mood statuses — instance 1",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": "{{base_url_1}}/api/v2/unicorns",
+            "description": "Reads the airplane_mood_read_model CQRS projection on instance 1 (port 8092). Returns a JSON array with registration, mood and updatedAt for each aircraft in the projection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('unicorns endpoint returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('response is a JSON array', function () {",
+                  "  var body = pm.response.json();",
+                  "  pm.expect(body).to.be.an('array');",
+                  "});",
+                  "pm.test('each entry has registration, mood and updatedAt', function () {",
+                  "  var body = pm.response.json();",
+                  "  if (body.length > 0) {",
+                  "    pm.expect(body[0]).to.have.property('registration');",
+                  "    pm.expect(body[0]).to.have.property('mood');",
+                  "    pm.expect(body[0]).to.have.property('updatedAt');",
+                  "  }",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET airplane mood statuses — instance 2",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": "{{base_url_2}}/api/v2/unicorns",
+            "description": "Same query on instance 2 (port 8093). With AMQP enabled both instances receive the same events (via distinct durable queues) so both read models should converge to the same state — eventual consistency."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('unicorns endpoint on instance 2 returns 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('instance 2 response is a JSON array', function () {",
+                  "  pm.expect(pm.response.json()).to.be.an('array');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

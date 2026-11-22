@@ -1,0 +1,36 @@
+$kind: http-request
+url: "{{base_url}}/api/aircrafts"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"registrationNumber\": \"CS-TKA\",\r
+
+    \    \"modelName\": \"Embraer E195-E2\",\r
+
+    \    \"manufacturingDate\": \"2023-05-20\",\r
+
+    \    \"status\": \"AVAILABLE\",\r
+
+    \    \"range\":700,\r
+
+    \    \"seatCapacity\": 10,\r
+
+    \    \"features\": [\"WiFi\", \"Extra Legroom\"]\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      var body = pm.response.json();
+      pm.test("Has registration number", () => pm.expect(body.registrationNumber).to.exist);
+      if (body.registrationNumber) {
+          pm.collectionVariables.set("aircraft_registration", body.registrationNumber);
+      }
+      if (body.version !== undefined) {
+          pm.collectionVariables.set("aircraft_version", String(body.version));
+      }
+    language: text/javascript
+order: 1000

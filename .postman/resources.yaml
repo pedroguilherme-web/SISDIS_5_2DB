@@ -1,0 +1,17 @@
+# Use this workspace to collaborate
+workspace:
+  id: 366528ef-0dda-4af5-80d9-83af36712091
+
+localResources:
+  collections:
+    - ../docs/postman/airports-routes-p2.postman_collection.json
+    - ../docs/postman/aisafe-aircraft-maintenance.postman_collection.json
+    - ../docs/postman/flight-operations-postman-collection.json
+    - ../docs/postman/psoft.postman_collection.json
+    - ../flight-operations-service/docs/flight-operations-postman-collection.json
+
+# Each entry here maps a local resource to one or more corresponding objects in Postman Cloud
+
+cloudResources:
+  collections:
+    ../postman/collections/AISAFE: ed5e7b15-8055-436c-90a3-4f6201944418
