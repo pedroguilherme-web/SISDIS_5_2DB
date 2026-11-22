@@ -44,7 +44,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
  * details retrieval, searching, status updates, and statistics.
  */
 @RestController
-@RequestMapping("/api/airports")
+@RequestMapping({"/api/airports", "/api/v1/airports"})
 @Tag(name = "Airports", description = "Airport management - WP#2A and WP#2B")
 public class AirportController {
     private final RegisterAirportUseCase registerAirport;

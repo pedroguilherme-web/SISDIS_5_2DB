@@ -51,11 +51,12 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/docs.html", "/docs/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/api/v2/unicorns/**").permitAll() // Assignment 2 CQRS query endpoint
                         // WP #1A/1B - Aircraft
                         .requestMatchers(HttpMethod.POST, "/api/aircrafts").hasRole("ATCC") // US102
                         .requestMatchers(HttpMethod.GET, "/api/aircrafts/search").hasRole("ATCC") // US104 (includes US224)
-                        .requestMatchers(HttpMethod.PATCH, "/api/aircrafts/*/status").hasRole("ATCC") // US105
-                        .requestMatchers(HttpMethod.PATCH, "/api/aircrafts/*").hasRole("BACKOFFICE_OPERATOR") // EXTRAS (Update Aircraft)
+                        .requestMatchers(HttpMethod.PATCH, "/api/aircrafts/*/status").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR") // US105
+                        .requestMatchers(HttpMethod.PATCH, "/api/aircrafts/*").hasAnyRole("BACKOFFICE_OPERATOR", "ATCC") // EXTRAS (Update Aircraft)
                         .requestMatchers(HttpMethod.DELETE, "/api/aircrafts/*").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR") // EXTRAS (Delete Aircraft)
                         .requestMatchers(HttpMethod.GET, "/api/aircrafts/*/compatible-routes").hasRole("ATCC") // US203
                         .requestMatchers(HttpMethod.GET, "/api/aircrafts/*/operational-hours").hasRole("ATCC") // US206

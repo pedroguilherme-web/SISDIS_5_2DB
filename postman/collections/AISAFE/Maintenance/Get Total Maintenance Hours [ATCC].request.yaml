@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/maintenance/records/hours"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Has total hours", () => pm.expect(pm.response.json().totalHours).to.be.a('number'));
+    language: text/javascript
+order: 6000

@@ -5,17 +5,32 @@ import aisafe.airports.domain.Airport;
 import aisafe.airports.domain.AirportNotFoundException;
 import aisafe.airports.domain.AirportRepository;
 import aisafe.airports.domain.IataCode;
+import aisafe.airports.application.dtos.AirportResponse;
+import aisafe.airports.infrastructure.messaging.AirportEventPublisher;
 import aisafe.routes.domain.RouteRepository;
 import aisafe.shared.domain.ResourceInUseException;
+import org.springframework.beans.factory.annotation.Autowired;
+
+import java.util.Optional;
 
 @UseCase
 public class DeleteAirportUseCase {
     private final AirportRepository airportRepository;
     private final RouteRepository routeRepository;
+    private final Optional<AirportEventPublisher> eventPublisher;
 
     public DeleteAirportUseCase(AirportRepository airportRepository, RouteRepository routeRepository) {
+        this(airportRepository, routeRepository, Optional.empty());
+    }
+
+    @Autowired
+    public DeleteAirportUseCase(
+            AirportRepository airportRepository,
+            RouteRepository routeRepository,
+            Optional<AirportEventPublisher> eventPublisher) {
         this.airportRepository = airportRepository;
         this.routeRepository = routeRepository;
+        this.eventPublisher = eventPublisher == null ? Optional.empty() : eventPublisher;
     }
 
     public void execute(String iataCode) {
@@ -25,6 +40,9 @@ public class DeleteAirportUseCase {
         if (!routeRepository.findByOriginOrDestination(code, code).isEmpty()) {
             throw new ResourceInUseException("Airport " + iataCode + " cannot be deleted because it is referenced by existing routes.");
         }
+        Long version = airportRepository.findVersionFor(code);
+        AirportResponse response = AirportResponse.from(airport, version);
         airportRepository.delete(airport);
+        eventPublisher.ifPresent(publisher -> publisher.publish(response, "AirportDeleted"));
     }
 }

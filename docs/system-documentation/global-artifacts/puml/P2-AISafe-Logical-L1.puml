@@ -1,0 +1,86 @@
+@startuml
+title AISafe P2 - Logical UML2 Component View
+
+skinparam componentStyle uml2
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+actor "Cliente / Postman" as client
+component "RabbitMQ\nTopic Exchanges" as rabbit <<component, message broker>>
+database "H2 aircraft 1" as amDb1 <<isolated>>
+database "H2 aircraft 2" as amDb2 <<isolated>>
+database "H2 airports 1" as arDb1 <<isolated>>
+database "H2 airports 2" as arDb2 <<isolated>>
+database "H2 flights 1" as foDb1 <<isolated>>
+database "H2 flights 2" as foDb2 <<isolated>>
+
+package "Aircraft & Maintenance Service" <<service>> {
+  component "Aircraft instance 1\n:8071\nCommand + Query" as am1 <<component, microservice>>
+  component "Aircraft instance 2\n:8072\nCommand + Query" as am2 <<component, microservice>>
+  () "Aircraft REST\n«provided»" as amRest <<interface, provided>>
+  () "Aircraft Events\n«required: publish»" as amEventOut <<interface, required>>
+  () "Aircraft Events\n«required: consume»" as amEventIn <<interface, required>>
+  am1 - amRest
+  am2 - amRest
+  am1 .. amEventOut
+  am2 .. amEventOut
+  am1 .. amEventIn
+  am2 .. amEventIn
+}
+
+package "Airports & Routes Service" <<service>> {
+  component "Airports instance 1\n:8092\nCommand + Query" as ar1 <<component, microservice>>
+  component "Airports instance 2\n:8093\nCommand + Query" as ar2 <<component, microservice>>
+  () "Airports REST\n«provided»" as arRest <<interface, provided>>
+  () "Airport Events\n«required: publish»" as arEventOut <<interface, required>>
+  () "Aircraft Events\n«required: consume»" as arAircraftIn <<interface, required>>
+  ar1 - arRest
+  ar2 - arRest
+  ar1 .. arEventOut
+  ar2 .. arEventOut
+  ar1 .. arAircraftIn
+  ar2 .. arAircraftIn
+}
+
+package "Flight Operations Service" <<service>> {
+  component "Flight instance 1\n:8081\nCommand + Query" as fo1 <<component, microservice>>
+  component "Flight instance 2\n:8082\nCommand + Query" as fo2 <<component, microservice>>
+  () "Flights REST\n«provided»" as foRest <<interface, provided>>
+  () "Flight Events\n«required: publish»" as foEventOut <<interface, required>>
+  () "Airport Events\n«required: consume»" as foAirportIn <<interface, required>>
+  () "Aircraft Events\n«required: consume»" as foAircraftIn <<interface, required>>
+  fo1 - foRest
+  fo2 - foRest
+  fo1 .. foEventOut
+  fo2 .. foEventOut
+  fo1 .. foAirportIn
+  fo2 .. foAirportIn
+  fo1 .. foAircraftIn
+  fo2 .. foAircraftIn
+}
+
+client --> amRest : HTTP /api/v1 + /api/v2
+client --> arRest : HTTP /api/v1 + /api/v2
+client --> foRest : HTTP /api/v1 + /api/v2
+
+am1 --> amDb1 : JPA write/read models
+am2 --> amDb2 : JPA write/read models
+ar1 --> arDb1 : JPA write/read models
+ar2 --> arDb2 : JPA write/read models
+fo1 --> foDb1 : JPA write/read models
+fo2 --> foDb2 : JPA write/read models
+
+amEventOut --> rabbit : aisafe.aircraft.events
+amEventIn <-- rabbit : aircraft.mood.changed
+arEventOut --> rabbit : aisafe.airports.events
+arAircraftIn <-- rabbit : aircraft.mood.changed
+foEventOut --> rabbit : aisafe.flight.events
+foAirportIn <-- rabbit : airports.airport.changed
+foAircraftIn <-- rabbit : aircraft.mood.changed
+
+note bottom
+  UML2 interfaces are shown as lollipops; «provided» denotes service APIs.
+  Dashed dependencies toward «required» interfaces denote socket/receptor
+  usage. Every instance owns an isolated H2 database and a durable AMQP queue.
+end note
+@enduml

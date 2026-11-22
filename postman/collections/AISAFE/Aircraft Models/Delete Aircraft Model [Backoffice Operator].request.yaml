@@ -1,0 +1,8 @@
+$kind: http-request
+url: "{{base_url}}/api/aircraftModels/{{aircraft_model_name}}"
+method: DELETE
+scripts:
+  - type: afterResponse
+    code: pm.test("Status is 204", () => pm.response.to.have.status(204));
+    language: text/javascript
+order: 5000

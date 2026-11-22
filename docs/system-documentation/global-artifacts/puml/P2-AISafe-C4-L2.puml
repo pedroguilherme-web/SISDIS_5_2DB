@@ -1,0 +1,62 @@
+@startuml
+!include <C4/C4_Container>
+
+title AISafe P2 - C4 Container View
+
+Person(client, "Cliente / Postman", "Executa comandos e consultas REST")
+
+System_Boundary(aisafe, "AISafe Flight Management System") {
+  Container_Boundary(aircraft, "Aircraft & Maintenance Service") {
+    Container(am1, "Aircraft instance 1", "Java 21 / Spring Boot", "HTTP :8071; CQRS")
+    Container(am2, "Aircraft instance 2", "Java 21 / Spring Boot", "HTTP :8072; CQRS")
+    ContainerDb(amDb1, "Aircraft DB 1", "H2 in-memory", "aircraft_maintenance_db_1")
+    ContainerDb(amDb2, "Aircraft DB 2", "H2 in-memory", "aircraft_maintenance_db_2")
+  }
+
+  Container_Boundary(airports, "Airports & Routes Service") {
+    Container(ar1, "Airports instance 1", "Java 21 / Spring Boot", "HTTP :8092; CQRS")
+    Container(ar2, "Airports instance 2", "Java 21 / Spring Boot", "HTTP :8093; CQRS")
+    ContainerDb(arDb1, "Airports DB 1", "H2 in-memory", "airports_routes_db_1")
+    ContainerDb(arDb2, "Airports DB 2", "H2 in-memory", "airports_routes_db_2")
+  }
+
+  Container_Boundary(flights, "Flight Operations Service") {
+    Container(fo1, "Flight Ops instance 1", "Java 21 / Spring Boot", "HTTP :8081; CQRS")
+    Container(fo2, "Flight Ops instance 2", "Java 21 / Spring Boot", "HTTP :8082; CQRS")
+    ContainerDb(foDb1, "Flight DB 1", "H2 in-memory", "flight_operations_db_1")
+    ContainerDb(foDb2, "Flight DB 2", "H2 in-memory", "flight_operations_db_2")
+  }
+
+  ContainerQueue(rabbit, "RabbitMQ", "AMQP 0-9-1", "Central broker; durable topic exchanges for aircraft, airports and flights")
+}
+
+Rel(client, am1, "REST /api/v1 and /api/v2", "HTTP/JSON + JWT")
+Rel(client, am2, "REST /api/v1 and /api/v2", "HTTP/JSON + JWT")
+Rel(client, ar1, "REST /api/v1 and /api/v2", "HTTP/JSON + JWT")
+Rel(client, ar2, "REST /api/v1 and /api/v2", "HTTP/JSON + JWT")
+Rel(client, fo1, "REST /api/v1 and /api/v2", "HTTP/JSON + JWT")
+Rel(client, fo2, "REST /api/v1 and /api/v2", "HTTP/JSON + JWT")
+
+Rel(am1, amDb1, "Write/read projections", "JPA")
+Rel(am2, amDb2, "Write/read projections", "JPA")
+Rel(ar1, arDb1, "Write/read projections", "JPA")
+Rel(ar2, arDb2, "Write/read projections", "JPA")
+Rel(fo1, foDb1, "Write/read projections", "JPA")
+Rel(fo2, foDb2, "Write/read projections", "JPA")
+
+Rel(am1, am2, "Peer forwarding", "HTTP")
+Rel(am2, am1, "Peer forwarding", "HTTP")
+Rel(ar1, ar2, "Peer forwarding", "HTTP")
+Rel(ar2, ar1, "Peer forwarding", "HTTP")
+Rel(fo1, fo2, "Peer forwarding", "HTTP")
+Rel(fo2, fo1, "Peer forwarding", "HTTP")
+
+Rel(am1, rabbit, "Publish AircraftMoodChangedEvent; consume own projection", "AMQP")
+Rel(am2, rabbit, "Publish AircraftMoodChangedEvent; consume own projection", "AMQP")
+Rel(ar1, rabbit, "Publish AirportChangedEvent; consume aircraft mood", "AMQP")
+Rel(ar2, rabbit, "Publish AirportChangedEvent; consume aircraft mood", "AMQP")
+Rel(fo1, rabbit, "Publish FlightScheduled; consume airport/aircraft events", "AMQP")
+Rel(fo2, rabbit, "Publish FlightScheduled; consume airport/aircraft events", "AMQP")
+
+SHOW_LEGEND()
+@enduml

@@ -1,0 +1,28 @@
+$kind: http-request
+name: Update Route [ATCC | BACKOFFICE_OPERATOR]
+url: "{{base_url}}/api/routes/{{route_origin}}/{{route_destination}}"
+method: PUT
+headers:
+  If-Match: "{{route_version}}"
+body:
+  type: json
+  content: "{\r
+
+    \    \"estimatedFlightTime\": 60,\r
+
+    \    \"minimumRange\": 600.0,\r
+
+    \    \"minimumCapacity\": 120\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      var jsonData = pm.response.json();
+      pm.test("Flight time updated", () => pm.expect(jsonData.estimatedFlightTime).to.equal(60));
+      if (jsonData.version !== undefined) {
+          pm.collectionVariables.set("route_version", String(jsonData.version));
+      }
+    language: text/javascript
+order: 4000

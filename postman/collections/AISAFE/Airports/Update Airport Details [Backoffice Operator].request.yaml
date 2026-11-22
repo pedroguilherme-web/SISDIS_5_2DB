@@ -1,0 +1,54 @@
+$kind: http-request
+url: "{{base_url}}/api/airports/{{airport_iata}}/details"
+method: PATCH
+headers:
+  If-Match: "{{airport_version}}"
+body:
+  type: json
+  content: "{\r
+
+    \    \"operationalHours\": \"06:00-23:00\",\r
+
+    \    \"contacts\": [\r
+
+    \        {\r
+
+    \            \"type\": \"PHONE\",\r
+
+    \            \"value\": \"+351229432400\",\r
+
+    \            \"description\": \"General Information\"\r
+
+    \        },\r
+
+    \        {\r
+
+    \            \"type\": \"EMAIL\",\r
+
+    \            \"value\": \"info@aeroportoporto.pt\",\r
+
+    \            \"description\": \"Customer Support\"\r
+
+    \        }\r
+
+    \    ],\r
+
+    \    \"services\": [\"Parking\", \"Car Rental\", \"Restaurants\"],\r
+
+    \    \"terminals\": [\"Terminal A\"],\r
+
+    \    \"gates\": [\"A1\", \"A2\", \"A3\"]\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Has IATA code", () => pm.expect(pm.response.json().iataCode).to.exist);
+      pm.test("Has HATEOAS _links", () => {
+          const body = pm.response.json();
+          pm.expect(body._links).to.exist;
+          pm.expect(body._links.self).to.exist;
+      });
+    language: text/javascript
+order: 9000

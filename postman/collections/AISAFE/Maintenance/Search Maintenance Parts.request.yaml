@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{base_url}}/api/maintenance/parts/search?lowStock=true"
+method: GET
+queryParams:
+  lowStock: "true"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Returns paginated response", () => {
+          const body = pm.response.json();
+          pm.expect(body.page).to.exist;
+          pm.expect(body.page.totalElements).to.be.a('number');
+      });
+    language: text/javascript
+order: 10000

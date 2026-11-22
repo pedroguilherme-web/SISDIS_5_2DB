@@ -11,10 +11,13 @@ public class ETagUtils {
      */
     public static Long parseVersion(String etag) {
         if (etag == null || etag.isBlank()) {
-            throw new IllegalArgumentException(
-                    "If-Match header is missing or empty. Please provide the current resource version.");
+            return null;
         }
-        String clean = etag.replace("W/", "").replace("\"", "").trim();
+        String trimmed = etag.trim();
+        if ("*".equals(trimmed) || "\"*\"".equals(trimmed)) {
+            return null;
+        }
+        String clean = trimmed.replace("W/", "").replace("\"", "").trim();
         try {
             return Long.parseLong(clean);
         } catch (NumberFormatException e) {

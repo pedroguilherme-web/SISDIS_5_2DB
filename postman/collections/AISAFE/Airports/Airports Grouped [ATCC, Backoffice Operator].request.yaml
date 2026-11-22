@@ -1,0 +1,23 @@
+$kind: http-request
+url: "{{base_url}}/api/airports/grouped?by=region"
+method: GET
+queryParams:
+  by: region
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      var body = pm.response.json();
+      pm.test("Returns HAL collection", () => {
+          pm.expect(body._embedded).to.exist;
+          pm.expect(body._links).to.exist;
+      });
+      pm.test("Each group has 'group' and 'airports' fields", () => {
+          var items = Object.values(body._embedded)[0];
+          items.forEach(g => {
+              pm.expect(g.group).to.be.a('string');
+              pm.expect(g.airports).to.be.an('array');
+          });
+      });
+    language: text/javascript
+order: 12000

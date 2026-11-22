@@ -1,0 +1,68 @@
+$kind: http-request
+url: "{{base_url}}/api/airports"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"iataCode\": \"LIS\",\r
+
+    \    \"name\": \"Humberto Delgado Airport\",\r
+
+    \    \"city\": \"Lisbon\",\r
+
+    \    \"country\": \"Portugal\",\r
+
+    \    \"region\": \"Europe\",\r
+
+    \    \"timezone\": \"Europe/Lisbon\",\r
+
+    \    \"latitude\": 38.7813,\r
+
+    \    \"longitude\": -9.1359,\r
+
+    \    \"runways\": [\r
+
+    \        {\r
+
+    \            \"name\": \"03/21\",\r
+
+    \            \"length\": 3805,\r
+
+    \            \"orientation\": \"030/210\"\r
+
+    \        },\r
+
+    \        {\r
+
+    \            \"name\": \"17/35\",\r
+
+    \            \"length\": 2400,\r
+
+    \            \"orientation\": \"170/350\"\r
+
+    \        }\r
+
+    \    ],\r
+
+    \    \"operationalHours\": \"00:00-23:59\",\r
+
+    \    \"services\": [\"Parking\", \"Car Rental\", \"Restaurants\", \"Duty Free\"],\r
+
+    \    \"terminals\": [\"Terminal 1\", \"Terminal 2\"],\r
+
+    \    \"gates\": [\"A1\", \"A2\", \"B1\", \"B2\", \"C1\"]\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      pm.test("Has IATA code", () => pm.expect(pm.response.json().iataCode).to.exist);
+      pm.test("Has HATEOAS _links", () => {
+          const body = pm.response.json();
+          pm.expect(body._links).to.exist;
+          pm.expect(body._links.self).to.exist;
+      });
+    language: text/javascript
+order: 3000

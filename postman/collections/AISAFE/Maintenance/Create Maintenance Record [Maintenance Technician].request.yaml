@@ -1,0 +1,42 @@
+$kind: http-request
+url: "{{base_url}}/api/maintenance/records"
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \    \"description\": \"Routine 100h engine inspection\",\r
+
+    \    \"startDate\": \"2026-06-01T09:00:00\",\r
+
+    \    \"expectedDuration\": 8,\r
+
+    \    \"parts\": [\"ENG-002\"],\r
+
+    \    \"notes\": \"Standard inspection as per maintenance schedule\",\r
+
+    \    \"template\": \"100h Engine Check\",\r
+
+    \    \"status\": \"PLANNED\",\r
+
+    \    \"registrationNumber\": \"{{aircraft_registration}}\",\r
+
+    \    \"components\": [\"ENGINE\"],\r
+
+    \    \"cost\": 1500.00\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 201", () => pm.response.to.have.status(201));
+      var jsonData = pm.response.json();
+      pm.test("Has record ID", () => pm.expect(jsonData.id).to.exist);
+      if (jsonData.id) {
+          pm.collectionVariables.set("maintenance_record_id", String(jsonData.id));
+      }
+      if (jsonData.version !== undefined) {
+          pm.collectionVariables.set("maintenance_record_version", String(jsonData.version));
+      }
+    language: text/javascript
+order: 3000

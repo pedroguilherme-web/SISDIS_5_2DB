@@ -10,15 +10,26 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import aisafe.maintenance.cqrs.events.MaintenanceCompletedEvent;
+import aisafe.shared.infrastructure.messaging.DomainEventPublisher;
+import aisafe.shared.infrastructure.messaging.RabbitMQConfig;
+import org.springframework.beans.factory.annotation.Autowired;
+
 /**
  * Updates an existing maintenance record with respective status and notes for it
  */
 @UseCase
 public class UpdateMaintenanceRecordUseCase {
     private final MaintenanceRecordRepository recordRepository;
+    private DomainEventPublisher eventPublisher;
 
     public UpdateMaintenanceRecordUseCase(MaintenanceRecordRepository recordRepository) {
         this.recordRepository = recordRepository;
+    }
+
+    @Autowired
+    public void setEventPublisher(DomainEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -41,13 +52,25 @@ public class UpdateMaintenanceRecordUseCase {
             throw new ConcurrencyException("Maintenance record version mismatch.");
         }
 
+        MaintenanceStatus previousStatus = record.getStatus();
         record.changeStatus(request.status());
         if (request.notes() != null && !request.notes().trim().isEmpty()) {
             record.updateNotes(request.notes());
         }
 
         recordRepository.save(record);
-        
+
+        if (eventPublisher != null && previousStatus != MaintenanceStatus.COMPLETED && request.status() == MaintenanceStatus.COMPLETED) {
+            MaintenanceCompletedEvent event = new MaintenanceCompletedEvent(
+                    record.getRecordId().toString(),
+                    record.getAircraftRegistration().getNumber(),
+                    java.time.LocalDateTime.now().toString(),
+                    record.getCost(),
+                    record.getNotes()
+            );
+            eventPublisher.publish(RabbitMQConfig.ROUTING_KEY_MAINTENANCE_COMPLETED, event);
+        }
+
         Long newVersion = recordRepository.findVersionFor(recordId);
 
         return new MaintenanceRecordResponse(

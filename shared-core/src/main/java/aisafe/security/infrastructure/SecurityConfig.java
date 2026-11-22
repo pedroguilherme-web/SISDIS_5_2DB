@@ -91,9 +91,20 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PATCH, "/api/airports/*/status").hasRole("BACKOFFICE_OPERATOR") // US109
                         .requestMatchers(HttpMethod.PATCH, "/api/airports/*/details").hasRole("BACKOFFICE_OPERATOR") // US208
                         .requestMatchers(HttpMethod.DELETE, "/api/airports/*").hasRole("BACKOFFICE_OPERATOR") // EXTRAS (Delete Airport)
+                        // CQRS/P2 API aliases
+                        .requestMatchers(HttpMethod.POST, "/api/v1/airports").hasRole("BACKOFFICE_OPERATOR")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/airports/import").hasRole("BACKOFFICE_OPERATOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/airports/*/status").hasRole("BACKOFFICE_OPERATOR")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/airports/*/details").hasRole("BACKOFFICE_OPERATOR")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/airports/*").hasRole("BACKOFFICE_OPERATOR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/airports/search").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/airports/*").hasAnyRole("BACKOFFICE_OPERATOR", "ATCC")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/airports").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR")
                         // WP #3A/3B - Routes and Flights
                         .requestMatchers(HttpMethod.GET, "/api/routes/export").hasRole("BACKOFFICE_OPERATOR") // US228 (BONUS)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/routes/export").hasRole("BACKOFFICE_OPERATOR")
                         .requestMatchers(HttpMethod.POST, "/api/routes/import").hasRole("BACKOFFICE_OPERATOR") // US225 (BONUS)
+                        .requestMatchers(HttpMethod.POST, "/api/v1/routes/import").hasRole("BACKOFFICE_OPERATOR")
                         .requestMatchers(HttpMethod.POST, "/api/flights/import").hasRole("BACKOFFICE_OPERATOR") // US225 (BONUS)
                         .requestMatchers(HttpMethod.POST, "/api/flights").hasRole("ATCC") // US212
                         .requestMatchers(HttpMethod.GET, "/api/flights").hasRole("ATCC") // US213
@@ -101,14 +112,25 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/network/total-distance").hasRole("ATCC") // US215
                         .requestMatchers(HttpMethod.GET, "/api/routes/alternatives").hasRole("ATCC") // US216
                         .requestMatchers(HttpMethod.POST, "/api/routes").hasRole("ATCC") // US110
+                        .requestMatchers(HttpMethod.POST, "/api/v1/routes").hasRole("ATCC")
                         .requestMatchers(HttpMethod.PUT, "/api/routes/*/*").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR") // US112
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/routes/*/*").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR")
                         .requestMatchers(HttpMethod.PATCH, "/api/routes/*/*/deactivate").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR") // US112
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/routes/*/*/deactivate").hasAnyRole("ATCC", "BACKOFFICE_OPERATOR")
                         .requestMatchers(HttpMethod.GET, "/api/routes/airport/*").hasRole("ATCC") // US113
+                        .requestMatchers(HttpMethod.GET, "/api/v1/routes/airport/*").hasRole("ATCC")
                         .requestMatchers(HttpMethod.GET, "/api/routes/search").hasRole("ATCC") // US114
+                        .requestMatchers(HttpMethod.GET, "/api/v1/routes/search").hasRole("ATCC")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/routes/alternatives").hasRole("ATCC")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/routes/*/*/history").hasRole("ATCC")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/routes/*/*").hasRole("ATCC")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/routes").hasRole("ATCC")
+                        .requestMatchers(HttpMethod.GET, "/api/v2/routes").hasRole("ATCC")
                         .requestMatchers(HttpMethod.GET, "/api/routes/*/*").hasRole("ATCC") // US113
                         .requestMatchers(HttpMethod.GET, "/api/routes/*/*/history").hasRole("ATCC") // US111
                         .requestMatchers(HttpMethod.GET, "/api/routes").hasRole("ATCC") // US214
                         .requestMatchers(HttpMethod.DELETE, "/api/routes/*/*").hasRole("ATCC") // EXTRAS (Delete Route)
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/routes/*/*").hasRole("ATCC")
                         // WP #4A/4B - Maintenance
                         .requestMatchers(HttpMethod.POST, "/api/maintenance/templates/import").hasRole("MAINTENANCE_TECHNICIAN") // US225 (BONUS)
                         .requestMatchers(HttpMethod.POST, "/api/maintenance/records/import").hasRole("MAINTENANCE_TECHNICIAN") // US225 (BONUS)

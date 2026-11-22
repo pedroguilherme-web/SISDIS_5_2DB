@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{base_url}}/api/aircrafts/search?modelName=Embraer E195-E2&status=IN_FLIGHT"
+method: GET
+queryParams:
+  - key: year
+    value: ""
+    disabled: true
+  - key: modelName
+    value: Embraer E195-E2
+  - key: status
+    value: IN_FLIGHT
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Returns paginated response", () => {
+          const body = pm.response.json();
+          pm.expect(body.page).to.exist;
+          pm.expect(body.page.totalElements).to.be.a('number');
+      });
+    language: text/javascript
+order: 4000

@@ -1,0 +1,26 @@
+$kind: http-request
+url: "{{base_url}}/api/aircrafts/{{aircraft_registration}}"
+method: PATCH
+headers:
+  If-Match: "{{aircraft_version}}"
+body:
+  type: json
+  content: "{\r
+
+    \    \"seatCapacity\": 220,\r
+
+    \    \"features\": [\"WiFi\", \"First Class\", \"Extra Legroom\"]\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      var body = pm.response.json();
+      pm.test("Has registrationNumber", () => pm.expect(body.registrationNumber).to.exist);
+      pm.test("Has HATEOAS _links", () => pm.expect(body._links).to.exist);
+      if (body.version !== undefined) {
+          pm.collectionVariables.set("aircraft_version", String(body.version));
+      }
+    language: text/javascript
+order: 5000

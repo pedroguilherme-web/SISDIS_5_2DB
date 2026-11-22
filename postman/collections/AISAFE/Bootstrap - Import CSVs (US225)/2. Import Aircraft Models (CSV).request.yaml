@@ -1,0 +1,22 @@
+$kind: http-request
+url: "{{base_url}}/api/aircraftModels/import"
+method: POST
+body:
+  type: formdata
+  content:
+    - type: file
+      key: file
+      src: []
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status code is 201 or 207", function () {
+          pm.expect(pm.response.code).to.be.oneOf([201, 207]);
+      });
+
+      pm.test("Response contains successfulCount", function () {
+          var jsonData = pm.response.json();
+          pm.expect(jsonData.successfulCount).to.be.a('number');
+      });
+    language: text/javascript
+order: 2000

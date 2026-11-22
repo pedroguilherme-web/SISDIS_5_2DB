@@ -1,0 +1,17 @@
+$kind: http-request
+url: "{{base_url}}/api/aircrafts/{{aircraft_registration}}/fuel-efficiency?origin=OPO&destination=LIS"
+method: GET
+queryParams:
+  origin: OPO
+  destination: LIS
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      var body = pm.response.json();
+      pm.test("Has registrationNumber", () => pm.expect(body.registrationNumber).to.exist);
+      pm.test("Has fuelConsumptionPerDistanceUnit", () => pm.expect(body.fuelConsumptionPerDistanceUnit).to.be.a('number'));
+      pm.test("Has fuelNeededForRoute", () => pm.expect(body.fuelNeededForRoute).to.be.a('number'));
+      pm.test("Has HATEOAS _links", () => pm.expect(body._links).to.exist);
+    language: text/javascript
+order: 9000
