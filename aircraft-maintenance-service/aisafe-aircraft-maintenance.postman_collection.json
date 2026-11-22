@@ -936,6 +936,255 @@
                                                   }
                                   }
                               ]
+                 },
+                 {
+                     "name":  "5. CQRS \u0026 Assignment 2 Tests (RabbitMQ AMQP \u0026 Mood Projection)",
+                     "item":  [
+                                  {
+                                      "name":  "1. GET /api/v2/unicorns - All Airplanes Mood (CQRS Read Model)",
+                                      "event":  [
+                                                    {
+                                                        "listen":  "test",
+                                                        "script":  {
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027Status code is 200 OK\u0027, function () {",
+                                                                                    "    pm.response.to.have.status(200);",
+                                                                                    "});",
+                                                                                    "pm.test(\u0027Response is an array of airplane moods\u0027, function () {",
+                                                                                    "    var jsonData = pm.response.json();",
+                                                                                    "    pm.expect(jsonData).to.be.an(\u0027array\u0027);",
+                                                                                    "    if (jsonData.length \u003e 0) {",
+                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027registrationNumber\u0027);",
+                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027mood\u0027);",
+                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027sparkleLevel\u0027);",
+                                                                                    "        pm.expect(jsonData[0]).to.have.property(\u0027moodReason\u0027);",
+                                                                                    "    }",
+                                                                                    "});"
+                                                                                ],
+                                                                       "type":  "text/javascript"
+                                                                   }
+                                                    }
+                                                ],
+                                      "request":  {
+                                                      "method":  "GET",
+                                                      "header":  [
+
+                                                                 ],
+                                                      "url":  {
+                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns",
+                                                                  "host":  [
+                                                                               "{{instance1_url}}"
+                                                                           ],
+                                                                  "path":  [
+                                                                               "api",
+                                                                               "v2",
+                                                                               "unicorns"
+                                                                           ]
+                                                              }
+                                                  }
+                                  },
+                                  {
+                                      "name":  "2. GET /api/v2/unicorns/CS-TKA - Specific Airplane Mood Projection (Instance 1)",
+                                      "event":  [
+                                                    {
+                                                        "listen":  "test",
+                                                        "script":  {
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027Status code is 200 OK\u0027, function () {",
+                                                                                    "    pm.response.to.have.status(200);",
+                                                                                    "});",
+                                                                                    "pm.test(\u0027Airplane mood data is valid\u0027, function () {",
+                                                                                    "    var jsonData = pm.response.json();",
+                                                                                    "    pm.expect(jsonData.registrationNumber).to.eql(\u0027CS-TKA\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027mood\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027sparkleLevel\u0027);",
+                                                                                    "});"
+                                                                                ],
+                                                                       "type":  "text/javascript"
+                                                                   }
+                                                    }
+                                                ],
+                                      "request":  {
+                                                      "method":  "GET",
+                                                      "header":  [
+
+                                                                 ],
+                                                      "url":  {
+                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns/CS-TKA",
+                                                                  "host":  [
+                                                                               "{{instance1_url}}"
+                                                                           ],
+                                                                  "path":  [
+                                                                               "api",
+                                                                               "v2",
+                                                                               "unicorns",
+                                                                               "CS-TKA"
+                                                                           ]
+                                                              }
+                                                  }
+                                  },
+                                  {
+                                      "name":  "3. Command: Update Aircraft CS-TKA to UNDER_MAINTENANCE",
+                                      "event":  [
+                                                    {
+                                                        "listen":  "test",
+                                                        "script":  {
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027Status code is 200 OK\u0027, function () {",
+                                                                                    "    pm.response.to.have.status(200);",
+                                                                                    "});"
+                                                                                ],
+                                                                       "type":  "text/javascript"
+                                                                   }
+                                                    }
+                                                ],
+                                      "request":  {
+                                                      "method":  "PATCH",
+                                                      "header":  [
+                                                                     {
+                                                                         "key":  "Authorization",
+                                                                         "value":  "Bearer {{jwt_token}}",
+                                                                         "type":  "text"
+                                                                     },
+                                                                     {
+                                                                         "key":  "Content-Type",
+                                                                         "value":  "application/json",
+                                                                         "type":  "text"
+                                                                     }
+                                                                 ],
+                                                      "body":  {
+                                                                   "mode":  "raw",
+                                                                   "raw":  "{\n    \"status\": \"UNDER_MAINTENANCE\"\n}"
+                                                               },
+                                                      "url":  {
+                                                                  "raw":  "{{instance1_url}}/api/aircrafts/CS-TKA",
+                                                                  "host":  [
+                                                                               "{{instance1_url}}"
+                                                                           ],
+                                                                  "path":  [
+                                                                               "api",
+                                                                               "aircrafts",
+                                                                               "CS-TKA"
+                                                                           ]
+                                                              }
+                                                  }
+                                  },
+                                  {
+                                      "name":  "4. Query (CQRS): Verify CS-TKA Mood Updated to UNDER_CARE (Instance 1)",
+                                      "event":  [
+                                                    {
+                                                        "listen":  "test",
+                                                        "script":  {
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027Status code is 200 OK\u0027, function () {",
+                                                                                    "    pm.response.to.have.status(200);",
+                                                                                    "});",
+                                                                                    "pm.test(\u0027Mood projected to UNDER_CARE after status update\u0027, function () {",
+                                                                                    "    var jsonData = pm.response.json();",
+                                                                                    "    pm.expect(jsonData.registrationNumber).to.eql(\u0027CS-TKA\u0027);",
+                                                                                    "    pm.expect(jsonData.mood).to.eql(\u0027UNDER_CARE\u0027);",
+                                                                                    "    pm.expect(jsonData.sparkleLevel).to.eql(45);",
+                                                                                    "    pm.expect(jsonData.moodReason).to.include(\u0027hangar\u0027);",
+                                                                                    "});"
+                                                                                ],
+                                                                       "type":  "text/javascript"
+                                                                   }
+                                                    }
+                                                ],
+                                      "request":  {
+                                                      "method":  "GET",
+                                                      "header":  [
+
+                                                                 ],
+                                                      "url":  {
+                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns/CS-TKA",
+                                                                  "host":  [
+                                                                               "{{instance1_url}}"
+                                                                           ],
+                                                                  "path":  [
+                                                                               "api",
+                                                                               "v2",
+                                                                               "unicorns",
+                                                                               "CS-TKA"
+                                                                           ]
+                                                              }
+                                                  }
+                                  },
+                                  {
+                                      "name":  "5. Multi-Instance Query: GET /api/v2/unicorns/CS-TKA on Instance 2 (:8082)",
+                                      "event":  [
+                                                    {
+                                                        "listen":  "test",
+                                                        "script":  {
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027Status code is 200 OK on Instance 2\u0027, function () {",
+                                                                                    "    pm.response.to.have.status(200);",
+                                                                                    "});",
+                                                                                    "pm.test(\u0027Instance 2 independently serves projected mood\u0027, function () {",
+                                                                                    "    var jsonData = pm.response.json();",
+                                                                                    "    pm.expect(jsonData.registrationNumber).to.eql(\u0027CS-TKA\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027mood\u0027);",
+                                                                                    "    pm.expect(jsonData).to.have.property(\u0027sparkleLevel\u0027);",
+                                                                                    "});"
+                                                                                ],
+                                                                       "type":  "text/javascript"
+                                                                   }
+                                                    }
+                                                ],
+                                      "request":  {
+                                                      "method":  "GET",
+                                                      "header":  [
+
+                                                                 ],
+                                                      "url":  {
+                                                                  "raw":  "{{instance2_url}}/api/v2/unicorns/CS-TKA",
+                                                                  "host":  [
+                                                                               "{{instance2_url}}"
+                                                                           ],
+                                                                  "path":  [
+                                                                               "api",
+                                                                               "v2",
+                                                                               "unicorns",
+                                                                               "CS-TKA"
+                                                                           ]
+                                                              }
+                                                  }
+                                  },
+                                  {
+                                      "name":  "6. Query: Non-Existent Aircraft Returns 404",
+                                      "event":  [
+                                                    {
+                                                        "listen":  "test",
+                                                        "script":  {
+                                                                       "exec":  [
+                                                                                    "pm.test(\u0027Status code is 404 Not Found\u0027, function () {",
+                                                                                    "    pm.response.to.have.status(404);",
+                                                                                    "});"
+                                                                                ],
+                                                                       "type":  "text/javascript"
+                                                                   }
+                                                    }
+                                                ],
+                                      "request":  {
+                                                      "method":  "GET",
+                                                      "header":  [
+
+                                                                 ],
+                                                      "url":  {
+                                                                  "raw":  "{{instance1_url}}/api/v2/unicorns/UNKNOWN-PLANE-999",
+                                                                  "host":  [
+                                                                               "{{instance1_url}}"
+                                                                           ],
+                                                                  "path":  [
+                                                                               "api",
+                                                                               "v2",
+                                                                               "unicorns",
+                                                                               "UNKNOWN-PLANE-999"
+                                                                           ]
+                                                              }
+                                                  }
+                                  }
+                              ]
                  }
              ]
 }

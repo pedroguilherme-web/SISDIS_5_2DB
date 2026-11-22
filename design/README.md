@@ -152,7 +152,27 @@ The process view details the runtime interaction when querying distributed/parti
 
 ---
 
-## 7. Architectural Decisions & Trade-Offs
+## 7. C4 Level 4: Code Diagram & Design Model
+
+C4 Level 4 zooms into the code structure of the **Aircraft & Maintenance Service**, detailing class architectures, DDD patterns, CQRS read models, and event flows.
+
+* **Dedicated Documentation:** [`design/C4_LEVEL_4_CODE_DESIGN.md`](file:///c:/Users/marti/SISDIS_5_2DB/design/C4_LEVEL_4_CODE_DESIGN.md)
+* **CQRS & Read Projections Diagram:** [`design/diagrams/c4/_level4/_code_cqrs_projections.puml`](file:///c:/Users/marti/SISDIS_5_2DB/design/diagrams/c4/_level4/_code_cqrs_projections.puml)
+* **Command & Write Aggregate Diagram:** [`design/diagrams/c4/_level4/_code_write_model_domain.puml`](file:///c:/Users/marti/SISDIS_5_2DB/design/diagrams/c4/_level4/_code_write_model_domain.puml)
+
+### Key Architectural Elements:
+1. **CQRS Read Projection (`/api/v2/unicorns`):**
+   * Handled by `UnicornsController`, which queries `AircraftReadModel` directly without JOINs.
+   * Projections are kept up-to-date asynchronously via `AircraftProjectionListener` consuming domain events (`@EventListener` and `@RabbitListener`).
+2. **Command / Write Aggregate:**
+   * `Aircraft` and `MaintenanceRecord` domain aggregates maintain invariants and protect consistency.
+   * Emits immutable events (`AircraftRegisteredEvent`, `AircraftStatusChangedEvent`, `MaintenanceScheduledEvent`, `MaintenanceCompletedEvent`) via `DomainEventPublisher`.
+3. **Concurrency Control:**
+   * Utilizes JPA `@Version` counters and ETag / `If-Match` headers for Optimistic Concurrency Control.
+
+---
+
+## 8. Architectural Decisions & Trade-Offs
 
 1. **CAP Theorem Alignment (AP System):**
    * Prioritizes **Availability (A)** and **Partition Tolerance (P)** over strict immediate consistency.
@@ -166,7 +186,7 @@ The process view details the runtime interaction when querying distributed/parti
 
 ---
 
-## 8. Verification & How to View Diagrams
+## 9. Verification & How to View Diagrams
 
 All diagrams are written in standard PlantUML using the official C4-PlantUML library:
 * In **IntelliJ IDEA** or **VS Code**, install the *PlantUML* extension to preview `.puml` files with real-time rendering.

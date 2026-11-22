@@ -11,18 +11,29 @@ import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import aisafe.maintenance.cqrs.events.MaintenanceScheduledEvent;
+import aisafe.shared.infrastructure.messaging.DomainEventPublisher;
+import aisafe.shared.infrastructure.messaging.RabbitMQConfig;
+import org.springframework.beans.factory.annotation.Autowired;
+
 @UseCase
 public class CreateMaintenanceRecordUseCase {
     private final MaintenanceRecordRepository recordRepository;
     private final MaintenancePartRepository partRepository;
     private final MaintenanceTemplateRepository templateRepository;
     private final AircraftRepository aircraftRepository;
+    private DomainEventPublisher eventPublisher;
 
     public CreateMaintenanceRecordUseCase(MaintenanceRecordRepository recordRepository, MaintenancePartRepository partRepository, MaintenanceTemplateRepository templateRepository, AircraftRepository aircraftRepository) {
         this.recordRepository = recordRepository;
         this.partRepository = partRepository;
         this.templateRepository = templateRepository;
         this.aircraftRepository = aircraftRepository;
+    }
+
+    @Autowired
+    public void setEventPublisher(DomainEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
     }
 
     public MaintenanceRecordResponse execute(CreateMaintenanceRecordRequest request) {
@@ -46,6 +57,16 @@ public class CreateMaintenanceRecordUseCase {
         }
 
         recordRepository.save(record);
+
+        if (eventPublisher != null) {
+            MaintenanceScheduledEvent event = new MaintenanceScheduledEvent(
+                    record.getRecordId().toString(),
+                    record.getAircraftRegistration().getNumber(),
+                    record.getStartDate().toString(),
+                    record.getDescription()
+            );
+            eventPublisher.publish(RabbitMQConfig.ROUTING_KEY_MAINTENANCE_SCHEDULED, event);
+        }
 
         Long version = recordRepository.findVersionFor(record.getRecordId());
 

@@ -11,15 +11,26 @@ import aisafe.shared.domain.DuplicateResourceException;
  * Validates input data, checks for duplicates, and saves the new aircraft to the repository.
  * Returns a DTO with the details of the newly registered aircraft.
  */
+import aisafe.aircrafts.cqrs.events.AircraftRegisteredEvent;
+import aisafe.shared.infrastructure.messaging.DomainEventPublisher;
+import aisafe.shared.infrastructure.messaging.RabbitMQConfig;
+import org.springframework.beans.factory.annotation.Autowired;
+
 @UseCase
 public class RegisterAircraftUseCase {
 
     private final AircraftRepository aircraftRepository;
     private final AircraftModelRepository modelRepository;
+    private DomainEventPublisher eventPublisher;
 
     public RegisterAircraftUseCase(AircraftRepository aircraftRepository, AircraftModelRepository modelRepository) {
         this.aircraftRepository = aircraftRepository;
         this.modelRepository = modelRepository;
+    }
+
+    @Autowired
+    public void setEventPublisher(DomainEventPublisher eventPublisher) {
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -54,6 +65,18 @@ public class RegisterAircraftUseCase {
                 request.features()
         );
         aircraftRepository.save(aircraft);
+
+        if (eventPublisher != null) {
+            AircraftRegisteredEvent event = new AircraftRegisteredEvent(
+                    aircraft.getRegistrationNumber().getNumber(),
+                    aircraft.getModel().getModelName(),
+                    aircraft.getStatus().name(),
+                    aircraft.getSeatCapacity(),
+                    aircraft.getRange(),
+                    aircraft.getFeatures()
+            );
+            eventPublisher.publish(RabbitMQConfig.ROUTING_KEY_AIRCRAFT_REGISTERED, event);
+        }
 
         Long version = aircraftRepository.findVersionFor(regNum);
         return AircraftResponse.from(aircraft, version);

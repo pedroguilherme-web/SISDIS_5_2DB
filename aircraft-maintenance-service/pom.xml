@@ -3,14 +3,12 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<parent>
-		<groupId>org.springframework.boot</groupId>
-		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>4.0.4</version>
-		<relativePath/>
+		<groupId>aisafe</groupId>
+		<artifactId>aisafe</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
 	</parent>
-	<groupId>aisafe</groupId>
 	<artifactId>aircraft-maintenance-service</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
 	<name>Aircraft Maintenance Service</name>
 	<description>Autonomous component for aircraft fleet and maintenance management in AISafe</description>
 
@@ -44,6 +42,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<!-- AMQP / RabbitMQ Messaging (Assignment 2) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-amqp</artifactId>
 		</dependency>
 
 		<!-- H2 In-Memory Database -->
