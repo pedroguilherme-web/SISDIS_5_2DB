@@ -20,6 +20,12 @@ System_Boundary(aisafe_system, "AISafe Flight Management System") {
 System_Ext(aviation_auth, "Civil Aviation Authority (CAA / ICAO)", "External authority providing standard aircraft certification norms, IATA/ICAO airport codes, and regulatory safety guidelines.")
 System_Ext(weather_svc, "Aviation Weather Service", "External meteorological service delivering atmospheric and wind forecasts for flight path and route compatibility analysis.")
 
+' Horizontal layout alignment hints
+admin -[hidden]right- bo_operator
+bo_operator -[hidden]right- atcc
+atcc -[hidden]right- technician
+aviation_auth -[hidden]right- weather_svc
+
 Rel(admin, aisafe, "Configures roles, audits access, and monitors distributed services", "HTTPS / REST")
 Rel(bo_operator, aisafe, "Registers aircraft models, fleet items, airports, and routes", "HTTPS / REST")
 Rel(atcc, aisafe, "Schedules flights and assigns aircraft under range/capacity constraints", "HTTPS / REST")

@@ -11,8 +11,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * RabbitMQ / AMQP Configuration for LETI-SIDIS Assignment 2.
- * Configures Topic Exchanges, Durable Queues, and Bindings for Asynchronous Event-Driven Architecture.
+ * RabbitMQ messaging configuration.
  */
 @Configuration
 public class RabbitMQConfig {

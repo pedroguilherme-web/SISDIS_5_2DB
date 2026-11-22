@@ -4,8 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * Base domain event representing an immutable state change in the system.
- * Part of Event-Driven Architecture and CQRS for LETI-SIDIS Assignment 2.
+ * Base domain event.
  */
 public abstract class DomainEvent {
 

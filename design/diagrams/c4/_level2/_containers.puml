@@ -6,21 +6,31 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Container Diagram - AISafe Distributed System (C4 Level 2)
+title Container Diagram - AISafe Distributed System with CQRS & AMQP (C4 Level 2)
 
 Person(user, "User / Operator", "Admin, Backoffice Operator, ATCC, or Maintenance Technician")
 
 System_Boundary(client_tier, "Client Tier") {
-    Container(spa, "Web Browser / API Client", "React SPA / Postman / Swagger UI", "Provides interactive UI and HTTP interface for operators to execute operational and querying workflows.")
+    Container(spa, "Web Browser / API Client", "React SPA / Postman / Swagger UI", "Provides interactive UI and HTTP interface for operators to execute operational commands and query CQRS fleet readiness projections.")
 }
 
-System_Boundary(c1_boundary, "Aircraft & Maintenance Service Cluster") {
-    Container(am_inst1, "Aircraft & Maintenance Service (Instance 1)", "Java, Spring Boot [Port 8081]", "Manages aircraft models, physical aircraft fleet, operational status, and maintenance work orders/templates.")
-    Container(am_inst2, "Aircraft & Maintenance Service (Instance 2)", "Java, Spring Boot [Port 8082]", "Cloned replica for horizontal scalability, fault tolerance, and redundant fleet/maintenance management.")
+System_Boundary(message_broker_boundary, "Asynchronous Event Messaging (Docker)") {
+    Container(rabbitmq, "Message Broker (RabbitMQ)", "RabbitMQ 3.13 / AMQP 0-9-1 [Port 5672, Mgmt 15672]", "Central event broker hosting topic exchange 'aisafe.exchange' and durable queues. Buffers and routes domain events for eventual consistency across services and replicas.")
+}
+
+System_Boundary(c1_boundary, "Aircraft & Maintenance Service Cluster (Martim Alves - 1240690)") {
+    Container(am_inst1, "Aircraft & Maintenance Service (Instance 1)", "Java, Spring Boot [Port 8081]", "Executes write commands (fleet/maintenance), emits domain events, updates local CQRS projections, and serves /api/v2/fleet.")
+    Container(am_inst2, "Aircraft & Maintenance Service (Instance 2)", "Java, Spring Boot [Port 8082]", "Cloned replica for horizontal scalability, fault tolerance, and P2P query forwarding.")
     Container(am_inst3, "Aircraft & Maintenance Service (Instance 3)", "Java, Spring Boot [Port 8083]", "Cloned replica forming a 3-node P2P mesh for resilient query forwarding.")
-    ContainerDb(am_db1, "H2 Database (Instance 1)", "H2 In-Memory DB (aircraft_maintenance_db_1)", "Stores aircraft models, aircraft fleet records, parts, and maintenance logs for Instance 1.")
-    ContainerDb(am_db2, "H2 Database (Instance 2)", "H2 In-Memory DB (aircraft_maintenance_db_2)", "Stores aircraft models, fleet records, parts, and maintenance logs for Instance 2.")
-    ContainerDb(am_db3, "H2 Database (Instance 3)", "H2 In-Memory DB (aircraft_maintenance_db_3)", "Stores aircraft models, fleet records, parts, and maintenance logs for Instance 3.")
+    ContainerDb(am_db1, "H2 Database (Instance 1)", "H2 In-Memory DB (aircraft_maintenance_db_1)", "Stores write tables (aircrafts, maintenance) and read model table (aircraft_read_model) for Instance 1.")
+    ContainerDb(am_db2, "H2 Database (Instance 2)", "H2 In-Memory DB (aircraft_maintenance_db_2)", "Stores write tables and read model table for Instance 2.")
+    ContainerDb(am_db3, "H2 Database (Instance 3)", "H2 In-Memory DB (aircraft_maintenance_db_3)", "Stores write tables and read model table for Instance 3.")
+
+    am_inst1 -[hidden]right- am_inst2
+    am_inst2 -[hidden]right- am_inst3
+    am_inst1 -[hidden]down- am_db1
+    am_inst2 -[hidden]down- am_db2
+    am_inst3 -[hidden]down- am_db3
 }
 
 System_Boundary(c2_boundary, "Airports & Routes Service Cluster") {
@@ -28,49 +38,67 @@ System_Boundary(c2_boundary, "Airports & Routes Service Cluster") {
     Container(ar_inst2, "Airports & Routes Service (Instance 2)", "Java, Spring Boot [Port 8092]", "Cloned replica for high availability and resilient airport/route resolution.")
     ContainerDb(ar_db1, "H2 Database (Instance 1)", "H2 In-Memory DB (Port 8091)", "Stores airport registry, runway specs, and route definitions for Instance 1.")
     ContainerDb(ar_db2, "H2 Database (Instance 2)", "H2 In-Memory DB (Port 8092)", "Stores airport registry, runway specs, and route definitions for Instance 2.")
+
+    ar_inst1 -[hidden]right- ar_inst2
+    ar_inst1 -[hidden]down- ar_db1
+    ar_inst2 -[hidden]down- ar_db2
 }
 
 System_Boundary(c3_boundary, "Flight Operations Service Cluster") {
-    Container(fo_inst1, "Flight Operations Service (Instance 1)", "Java, Spring Boot [Port 8071]", "Coordinates flight scheduling, real-time availability checks, and assigns aircraft to routes under range/capacity constraints.")
+    Container(fo_inst1, "Flight Operations Service (Instance 1)", "Java, Spring Boot [Port 8071]", "Coordinates flight scheduling, availability checks, and emits FlightCompletedEvent telemetry.")
     Container(fo_inst2, "Flight Operations Service (Instance 2)", "Java, Spring Boot [Port 8072]", "Cloned replica for scalable and fault-tolerant flight operation dispatching.")
     ContainerDb(fo_db1, "H2 Database (Instance 1)", "H2 In-Memory DB (Port 8071)", "Stores scheduled flight operations, pilot assignments, and status logs for Instance 1.")
     ContainerDb(fo_db2, "H2 Database (Instance 2)", "H2 In-Memory DB (Port 8072)", "Stores scheduled flight operations, pilot assignments, and status logs for Instance 2.")
+
+    fo_inst1 -[hidden]right- fo_inst2
+    fo_inst1 -[hidden]down- fo_db1
+    fo_inst2 -[hidden]down- fo_db2
 }
 
 ' Client traffic to instances
 Rel(user, spa, "Interacts with", "HTTPS")
-Rel(spa, am_inst1, "Manages fleet & maintenance", "JSON / HTTP REST (8081)")
-Rel(spa, am_inst2, "Manages fleet & maintenance (Replica 2)", "JSON / HTTP REST (8082)")
-Rel(spa, am_inst3, "Manages fleet & maintenance (Replica 3)", "JSON / HTTP REST (8083)")
+Rel(spa, am_inst1, "Commands & CQRS queries (GET /api/v2/fleet)", "JSON / HTTP REST (8081)")
+Rel(spa, am_inst2, "Commands & CQRS queries (GET /api/v2/fleet)", "JSON / HTTP REST (8082)")
+Rel(spa, am_inst3, "Commands & CQRS queries (GET /api/v2/fleet)", "JSON / HTTP REST (8083)")
 Rel(spa, ar_inst1, "Manages airports & routes", "JSON / HTTP REST (8091)")
 Rel(spa, ar_inst2, "Manages airports & routes (Replica)", "JSON / HTTP REST (8092)")
 Rel(spa, fo_inst1, "Schedules flight operations", "JSON / HTTP REST (8071)")
 Rel(spa, fo_inst2, "Schedules flight operations (Replica)", "JSON / HTTP REST (8072)")
 
 ' Intra-service database connections
-Rel(am_inst1, am_db1, "Reads & writes fleet data", "JDBC / JPA")
-Rel(am_inst2, am_db2, "Reads & writes fleet data", "JDBC / JPA")
-Rel(am_inst3, am_db3, "Reads & writes fleet data", "JDBC / JPA")
+Rel(am_inst1, am_db1, "Reads & writes write-model + read-model", "JDBC / JPA")
+Rel(am_inst2, am_db2, "Reads & writes write-model + read-model", "JDBC / JPA")
+Rel(am_inst3, am_db3, "Reads & writes write-model + read-model", "JDBC / JPA")
 Rel(ar_inst1, ar_db1, "Reads & writes airport data", "JDBC / JPA")
 Rel(ar_inst2, ar_db2, "Reads & writes airport data", "JDBC / JPA")
 Rel(fo_inst1, fo_db1, "Reads & writes flight data", "JDBC / JPA")
 Rel(fo_inst2, fo_db2, "Reads & writes flight data", "JDBC / JPA")
 
-' Intra-service P2P Forwarding (Unicast fallback)
-Rel_U(am_inst1, am_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
-Rel_D(am_inst2, am_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
-Rel_U(am_inst2, am_inst3, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
-Rel_D(am_inst3, am_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
-Rel_U(am_inst1, am_inst3, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
-Rel_D(am_inst3, am_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+' Asynchronous Messaging (AMQP / RabbitMQ)
+Rel(am_inst1, rabbitmq, "Publishes domain events (aircraft.*, maintenance.*)", "AMQP 0-9-1 (5672)")
+Rel(am_inst2, rabbitmq, "Publishes domain events (aircraft.*, maintenance.*)", "AMQP 0-9-1 (5672)")
+Rel(am_inst3, rabbitmq, "Publishes domain events (aircraft.*, maintenance.*)", "AMQP 0-9-1 (5672)")
+Rel(fo_inst1, rabbitmq, "Publishes flight events (flight.completed)", "AMQP 0-9-1 (5672)")
+Rel(fo_inst2, rabbitmq, "Publishes flight events (flight.completed)", "AMQP 0-9-1 (5672)")
 
-Rel_U(ar_inst1, ar_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
-Rel_D(ar_inst2, ar_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+Rel(rabbitmq, am_inst1, "Dispatches events to aisafe.cqrs.projections.queue", "AMQP 0-9-1 (Push)")
+Rel(rabbitmq, am_inst2, "Dispatches events to aisafe.cqrs.projections.queue", "AMQP 0-9-1 (Push)")
+Rel(rabbitmq, am_inst3, "Dispatches events to aisafe.cqrs.projections.queue", "AMQP 0-9-1 (Push)")
 
-Rel_U(fo_inst1, fo_inst2, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
-Rel_D(fo_inst2, fo_inst1, "Peer-to-Peer HTTP GET Forwarding on local cache miss", "HTTP GET (Unicast)")
+' Cluster horizontal alignment hints
+c1_boundary -[hidden]right- c2_boundary
+c2_boundary -[hidden]right- c3_boundary
 
-' Inter-service collaboration
+' Intra-service P2P Forwarding (Bidirectional)
+BiRel(am_inst1, am_inst2, "P2P Query Forwarding", "HTTP GET (Unicast)")
+BiRel(am_inst2, am_inst3, "P2P Query Forwarding", "HTTP GET (Unicast)")
+BiRel(am_inst1, am_inst3, "P2P Query Forwarding", "HTTP GET (Unicast)")
+
+BiRel(ar_inst1, ar_inst2, "P2P Query Forwarding", "HTTP GET (Unicast)")
+
+BiRel(fo_inst1, fo_inst2, "P2P Query Forwarding", "HTTP GET (Unicast)")
+
+' Inter-service collaboration (Direct HTTP REST)
 Rel(fo_inst1, am_inst1, "Checks aircraft availability & operational status", "JSON / HTTP REST")
 Rel(fo_inst1, ar_inst1, "Validates airport runway length & route distance", "JSON / HTTP REST")
 Rel(am_inst1, fo_inst1, "Queries accumulated flight hours for maintenance alerts", "JSON / HTTP REST")

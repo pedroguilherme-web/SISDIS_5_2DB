@@ -14,9 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Event-Driven Projector for CQRS Read Models.
- * Subscribes to Domain Events asynchronously (via RabbitMQ AMQP) and synchronously (via Spring events)
- * to maintain the eventual consistency of the read projections.
+ * Listener for updating aircraft read projections from domain events.
  */
 @Component
 public class AircraftProjectionListener {
@@ -48,7 +46,7 @@ public class AircraftProjectionListener {
         model.setStatus(event.getStatus());
         model.setSeatCapacity(event.getSeatCapacity());
         model.setRange(event.getRange());
-        model.recalculateMood();
+        model.recalculateReadinessStatus();
 
         readModelRepository.save(model);
     }
@@ -58,11 +56,17 @@ public class AircraftProjectionListener {
     @Transactional
     public void onAircraftStatusChanged(AircraftStatusChangedEvent event) {
         log.info("CQRS Projection: Status changed for aircraft {} to {}", event.getRegistrationNumber(), event.getNewStatus());
-        readModelRepository.findByRegistrationNumber(event.getRegistrationNumber()).ifPresent(model -> {
-            model.setStatus(event.getNewStatus());
-            model.recalculateMood();
-            readModelRepository.save(model);
-        });
+        AircraftReadModel model = readModelRepository.findByRegistrationNumber(event.getRegistrationNumber())
+                .orElseGet(() -> new AircraftReadModel(
+                        event.getRegistrationNumber(),
+                        "Unknown",
+                        event.getNewStatus(),
+                        0.0,
+                        0
+                ));
+        model.setStatus(event.getNewStatus());
+        model.recalculateReadinessStatus();
+        readModelRepository.save(model);
     }
 
     @EventListener
@@ -70,12 +74,18 @@ public class AircraftProjectionListener {
     @Transactional
     public void onMaintenanceScheduled(MaintenanceScheduledEvent event) {
         log.info("CQRS Projection: Maintenance scheduled for aircraft {}", event.getRegistrationNumber());
-        readModelRepository.findByRegistrationNumber(event.getRegistrationNumber()).ifPresent(model -> {
-            int current = model.getPendingMaintenanceCount() != null ? model.getPendingMaintenanceCount() : 0;
-            model.setPendingMaintenanceCount(current + 1);
-            model.recalculateMood();
-            readModelRepository.save(model);
-        });
+        AircraftReadModel model = readModelRepository.findByRegistrationNumber(event.getRegistrationNumber())
+                .orElseGet(() -> new AircraftReadModel(
+                        event.getRegistrationNumber(),
+                        "Unknown",
+                        "AVAILABLE",
+                        0.0,
+                        0
+                ));
+        int current = model.getPendingMaintenanceCount() != null ? model.getPendingMaintenanceCount() : 0;
+        model.setPendingMaintenanceCount(current + 1);
+        model.recalculateReadinessStatus();
+        readModelRepository.save(model);
     }
 
     @EventListener
@@ -83,12 +93,18 @@ public class AircraftProjectionListener {
     @Transactional
     public void onMaintenanceCompleted(MaintenanceCompletedEvent event) {
         log.info("CQRS Projection: Maintenance completed for aircraft {}", event.getRegistrationNumber());
-        readModelRepository.findByRegistrationNumber(event.getRegistrationNumber()).ifPresent(model -> {
-            int current = model.getPendingMaintenanceCount() != null ? model.getPendingMaintenanceCount() : 0;
-            model.setPendingMaintenanceCount(Math.max(0, current - 1));
-            model.recalculateMood();
-            readModelRepository.save(model);
-        });
+        AircraftReadModel model = readModelRepository.findByRegistrationNumber(event.getRegistrationNumber())
+                .orElseGet(() -> new AircraftReadModel(
+                        event.getRegistrationNumber(),
+                        "Unknown",
+                        "AVAILABLE",
+                        0.0,
+                        0
+                ));
+        int current = model.getPendingMaintenanceCount() != null ? model.getPendingMaintenanceCount() : 0;
+        model.setPendingMaintenanceCount(Math.max(0, current - 1));
+        model.recalculateReadinessStatus();
+        readModelRepository.save(model);
     }
 
     @EventListener
@@ -97,12 +113,17 @@ public class AircraftProjectionListener {
     public void onFlightCompleted(FlightCompletedEvent event) {
         log.info("CQRS Projection: Flight completed for aircraft {}, adding {} flight hours",
                 event.getAircraftRegistration(), event.getFlightDurationHours());
-        readModelRepository.findByRegistrationNumber(event.getAircraftRegistration()).ifPresent(model -> {
-            double current = model.getTotalOperationalHours() != null ? model.getTotalOperationalHours() : 0.0;
-            double added = event.getFlightDurationHours() != null ? event.getFlightDurationHours() : 0.0;
-            model.setTotalOperationalHours(current + added);
-            model.recalculateMood();
-            readModelRepository.save(model);
-        });
+        AircraftReadModel model = readModelRepository.findByRegistrationNumber(event.getAircraftRegistration())
+                .orElseGet(() -> new AircraftReadModel(
+                        event.getAircraftRegistration(),
+                        "Unknown",
+                        "AVAILABLE",
+                        0.0,
+                        0
+                ));
+        double currentHours = model.getTotalOperationalHours() != null ? model.getTotalOperationalHours() : 0.0;
+        model.setTotalOperationalHours(currentHours + event.getFlightDurationHours());
+        model.recalculateReadinessStatus();
+        readModelRepository.save(model);
     }
 }
