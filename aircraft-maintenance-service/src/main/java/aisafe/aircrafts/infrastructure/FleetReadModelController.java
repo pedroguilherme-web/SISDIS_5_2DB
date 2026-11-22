@@ -21,14 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * CQRS Query / Read Model REST Controller for LETI-SIDIS Assignment 2:
- * GET /api/v2/fleet - Returns aggregated fleet operational and maintenance status in JSON format.
- * Demonstrates a dedicated CQRS Read Model projection querying 'aircraft_read_model' without relational joins.
+ * REST controller for fleet read model queries.
  */
 @RestController
 @RequestMapping("/api/v2/fleet")
-@Tag(name = "Fleet Read Model - CQRS Projections",
-        description = "Query endpoints returning pre-calculated fleet operational readiness projected via CQRS")
+@Tag(name = "Fleet Read Model",
+        description = "Query endpoints returning fleet operational readiness")
 public class FleetReadModelController {
 
     private final AircraftReadModelRepository readModelRepository;
@@ -95,10 +93,6 @@ public class FleetReadModelController {
         return ResponseEntity.ok(AircraftFleetSummaryResponse.fromReadModel(model));
     }
 
-    /**
-     * Self-healing read model synchronization:
-     * Seeds or updates missing projection entries from the write-side repository into the read model.
-     */
     private void ensureReadModelPopulated() {
         List<Aircraft> aircrafts = aircraftRepository.findAll();
         for (Aircraft a : aircrafts) {

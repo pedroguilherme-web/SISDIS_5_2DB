@@ -51,7 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers("/docs.html", "/docs/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        .requestMatchers("/api/v2/fleet/**").permitAll() // Assignment 2 CQRS query endpoint
+                        .requestMatchers("/api/v2/fleet/**").permitAll()
                         // WP #1A/1B - Aircraft
                         .requestMatchers(HttpMethod.POST, "/api/aircrafts").hasRole("ATCC") // US102
                         .requestMatchers(HttpMethod.GET, "/api/aircrafts/search").hasRole("ATCC") // US104 (includes US224)

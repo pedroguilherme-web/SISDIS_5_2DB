@@ -11,9 +11,7 @@ import lombok.Setter;
 import java.time.Instant;
 
 /**
- * CQRS Read Model for Aircraft and Fleet status.
- * Denormalized entity stored in the read table 'aircraft_read_model'.
- * Optimized specifically for fast read operations, dashboards, and operational readiness projections.
+ * Read model projection entity for fleet status.
  */
 @Entity
 @Table(name = "aircraft_read_model")

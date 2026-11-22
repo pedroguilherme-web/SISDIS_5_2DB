@@ -17,7 +17,7 @@ import java.util.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@DisplayName("FleetReadModelController Tests (Assignment 2 CQRS Endpoint)")
+@DisplayName("FleetReadModelController Tests")
 class FleetReadModelControllerTest {
 
     private MockMvc mockMvc;

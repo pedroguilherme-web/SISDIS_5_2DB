@@ -14,9 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Event-Driven Projector for CQRS Read Models.
- * Subscribes to Domain Events asynchronously (via RabbitMQ AMQP) and synchronously (via Spring events)
- * to maintain the eventual consistency of the read projections.
+ * Listener for updating aircraft read projections from domain events.
  */
 @Component
 public class AircraftProjectionListener {

@@ -3,8 +3,7 @@ package aisafe.aircrafts.cqrs.projections;
 import java.time.Instant;
 
 /**
- * DTO representing the aircraft fleet status for CQRS read projections.
- * Optimized for low-latency queries and ATCC / Maintenance dashboard views.
+ * DTO representing the aircraft fleet status for read queries.
  */
 public record AircraftFleetSummaryResponse(
         String registrationNumber,

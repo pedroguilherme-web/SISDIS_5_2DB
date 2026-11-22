@@ -18,7 +18,7 @@ import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("AircraftProjectionListener CQRS Projection Tests")
+@DisplayName("AircraftProjectionListener Tests")
 class AircraftProjectionListenerTest {
 
     private Map<String, AircraftReadModel> storage;

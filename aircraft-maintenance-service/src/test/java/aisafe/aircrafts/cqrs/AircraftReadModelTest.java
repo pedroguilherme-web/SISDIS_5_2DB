@@ -6,7 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("AircraftReadModel CQRS Projection Tests")
+@DisplayName("AircraftReadModel Tests")
 class AircraftReadModelTest {
 
     @Test

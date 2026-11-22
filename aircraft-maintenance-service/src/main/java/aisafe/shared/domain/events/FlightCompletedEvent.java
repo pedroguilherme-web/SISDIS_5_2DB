@@ -4,8 +4,7 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
- * Event received from Flight Operations Service when a scheduled flight completes.
- * Demonstrates asynchronous inter-service event consumption across service boundaries.
+ * Event received when a scheduled flight completes.
  */
 public class FlightCompletedEvent extends DomainEvent {
 
