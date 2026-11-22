@@ -14,6 +14,11 @@ Container_Ext(flight_service, "Flight Operations Service", "Spring Boot (Port 80
 Container_Ext(route_service, "Airports & Routes Service", "Spring Boot (Port 8092)", "Provides route requirements, runway limitations, and distance calculations.")
 Container_Ext(rabbitmq, "Message Broker (RabbitMQ)", "RabbitMQ 3.13 / AMQP 0-9-1 [Port 5672]", "Central topic exchange 'aisafe.exchange' and durable queues for event-driven decoupled projections.")
 
+' Horizontal alignment hints
+spa -[hidden]right- peer_instance
+peer_instance -[hidden]right- rabbitmq
+flight_service -[hidden]right- route_service
+
 Container_Boundary(am_container, "Aircraft & Maintenance Service Container [Port 8081]") {
     
     Component(security_filter, "Security & Auth Filter", "Spring Security / JWT", "Intercepts inbound HTTP requests, verifies Bearer JWT tokens, and enforces RBAC.")
@@ -23,6 +28,11 @@ Container_Boundary(am_container, "Aircraft & Maintenance Service Container [Port
     Component(model_ctrl, "AircraftModelController", "Spring MVC REST Controller", "Exposes /api/aircraftModels/** for aircraft model specification catalog.")
     Component(maint_ctrl, "MaintenanceController", "Spring MVC REST Controller", "Exposes /api/maintenance/** for templates, work orders, parts inventory, and turnaround metrics.")
     Component(fleet_ctrl, "FleetReadModelController", "Spring MVC REST Controller", "Exposes /api/v2/fleet/** for CQRS Read Model queries (fleet operational readiness projections).")
+
+    auth_ctrl -[hidden]right- aircraft_ctrl
+    aircraft_ctrl -[hidden]right- model_ctrl
+    model_ctrl -[hidden]right- maint_ctrl
+    maint_ctrl -[hidden]right- fleet_ctrl
 
     Component(forwarding_aspect, "PeerForwardingAspect", "Spring AOP (@Around)", "Intercepts HTTP GET requests. If a local NotFoundException occurs, forwards unicast HTTP GET to configured peer URLs (8082, 8083) with 'X-Peer-Forwarded' header.")
 
