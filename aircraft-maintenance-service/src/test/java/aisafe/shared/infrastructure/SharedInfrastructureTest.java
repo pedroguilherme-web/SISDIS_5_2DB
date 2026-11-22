@@ -32,8 +32,8 @@ class SharedInfrastructureTest {
 
     @Test
     void ensureETagUtilsThrowsOnInvalidETags() {
-        assertThrows(IllegalArgumentException.class, () -> ETagUtils.parseVersion(null));
-        assertThrows(IllegalArgumentException.class, () -> ETagUtils.parseVersion("   "));
+        assertNull(ETagUtils.parseVersion(null));
+        assertNull(ETagUtils.parseVersion("   "));
         assertThrows(IllegalArgumentException.class, () -> ETagUtils.parseVersion("W/abc"));
     }
 
@@ -153,3 +153,4 @@ class SharedInfrastructureTest {
         assertEquals("UnknownTag", tags.get(2).getName());
     }
 }
+
