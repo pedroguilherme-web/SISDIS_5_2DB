@@ -68,23 +68,44 @@ public class FleetReadModelController {
 
         ensureReadModelPopulated();
 
-        return readModelRepository.findByRegistrationNumber(registration)
-                .map(AircraftFleetSummaryResponse::fromReadModel)
-                .map(ResponseEntity::ok)
-                .orElseThrow(() -> new AircraftNotFoundException("Aircraft with registration " + registration + " not found."));
+        AircraftReadModel model = readModelRepository.findByRegistrationNumber(registration)
+                .orElseGet(() -> {
+                    try {
+                        return aircraftRepository.findByRegistrationNumber(new aisafe.aircrafts.domain.RegistrationNumber(registration))
+                                .map(a -> {
+                                    AircraftReadModel rm = new AircraftReadModel(
+                                            a.getRegistrationNumber().getNumber(),
+                                            a.getModel() != null ? a.getModel().getModelName() : "Unknown",
+                                            a.getStatus() != null ? a.getStatus().name() : "AVAILABLE",
+                                            a.getModel() != null ? a.getModel().getMaximumSeatingCapacity() : 180,
+                                            a.getModel() != null ? a.getModel().getMaxRange() : 6000.0
+                                    );
+                                    return readModelRepository.save(rm);
+                                })
+                                .orElse(null);
+                    } catch (Exception e) {
+                        return null;
+                    }
+                });
+
+        if (model == null) {
+            throw new AircraftNotFoundException("Aircraft with registration " + registration + " not found.");
+        }
+
+        return ResponseEntity.ok(AircraftFleetSummaryResponse.fromReadModel(model));
     }
 
     /**
      * Self-healing read model synchronization:
-     * If read model is empty upon startup with in-memory H2 database,
-     * seeds initial projection entries from the write-side repository.
+     * Seeds or updates missing projection entries from the write-side repository into the read model.
      */
     private void ensureReadModelPopulated() {
-        if (readModelRepository.count() == 0) {
-            List<Aircraft> aircrafts = aircraftRepository.findAll();
-            for (Aircraft a : aircrafts) {
+        List<Aircraft> aircrafts = aircraftRepository.findAll();
+        for (Aircraft a : aircrafts) {
+            String reg = a.getRegistrationNumber().getNumber();
+            if (readModelRepository.findByRegistrationNumber(reg).isEmpty()) {
                 AircraftReadModel rm = new AircraftReadModel(
-                        a.getRegistrationNumber().getNumber(),
+                        reg,
                         a.getModel() != null ? a.getModel().getModelName() : "Unknown",
                         a.getStatus() != null ? a.getStatus().name() : "AVAILABLE",
                         a.getModel() != null ? a.getModel().getMaximumSeatingCapacity() : 180,
