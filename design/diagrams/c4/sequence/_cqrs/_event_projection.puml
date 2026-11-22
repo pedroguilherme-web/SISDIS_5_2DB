@@ -1,7 +1,5 @@
 @startuml _event_projection
 autonumber
-skinparam BoxPadding 10
-skinparam ParticipantPadding 10
 skinparam ResponseMessageBelowArrow true
 
 title Asynchronous CQRS Event-Driven Projection & Fleet Readiness Query Flow (C4+1 Scenario)
