@@ -1,0 +1,148 @@
+@startuml _code_write_model_domain
+skinparam classAttributeIconSize 0
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2C3E50
+    ArrowColor #27AE60
+}
+
+title C4 Level 4: Code Diagram - Command / Write Model & Domain Aggregate (Aircraft & Maintenance Service)
+
+package "Controllers (REST)" {
+    class AircraftController <<@RestController>> {
+        - registerAircraftUseCase: RegisterAircraftUseCase
+        - updateAircraftUseCase: UpdateAircraftUseCase
+        - viewAircraftDetailsUseCase: ViewAircraftDetailsUseCase
+        + registerAircraft(request: RegisterAircraftRequest): ResponseEntity
+        + updateAircraft(registration: String, request: UpdateAircraftRequest, ifMatch: String): ResponseEntity
+    }
+
+    class MaintenanceController <<@RestController>> {
+        - createRecordUseCase: CreateMaintenanceRecordUseCase
+        - updateRecordUseCase: UpdateMaintenanceRecordUseCase
+        + createRecord(request: CreateMaintenanceRecordRequest): ResponseEntity
+        + updateRecord(id: UUID, request: UpdateMaintenanceRecordsRequest, ifMatch: String): ResponseEntity
+    }
+}
+
+package "Application Services (Use Cases)" {
+    class RegisterAircraftUseCase <<@UseCase>> {
+        - aircraftRepository: AircraftRepository
+        - modelRepository: AircraftModelRepository
+        - eventPublisher: DomainEventPublisher
+        + execute(request: RegisterAircraftRequest): AircraftResponse
+    }
+
+    class UpdateAircraftUseCase <<@UseCase>> {
+        - aircraftRepository: AircraftRepository
+        - aircraftModelRepository: AircraftModelRepository
+        - eventPublisher: DomainEventPublisher
+        + execute(reg: RegistrationNumber, req: UpdateAircraftRequest, clientVersion: Long): AircraftResponse
+    }
+
+    class CreateMaintenanceRecordUseCase <<@UseCase>> {
+        - recordRepository: MaintenanceRecordRepository
+        - eventPublisher: DomainEventPublisher
+        + execute(request: CreateMaintenanceRecordRequest): MaintenanceRecordResponse
+    }
+
+    class UpdateMaintenanceRecordUseCase <<@UseCase>> {
+        - recordRepository: MaintenanceRecordRepository
+        - eventPublisher: DomainEventPublisher
+        + execute(id: UUID, request: UpdateMaintenanceRecordsRequest, clientVersion: Long): MaintenanceRecordResponse
+    }
+}
+
+package "Domain Layer (Aggregates & Value Objects)" {
+    class Aircraft <<Aggregate Root>> {
+        - registrationNumber: RegistrationNumber <<VO>>
+        - model: AircraftModel
+        - status: AircraftStatus <<enum>>
+        - seatCapacity: Integer
+        - range: Double
+        - features: List<String>
+        - manufacturingDate: LocalDate
+        - version: Long <<@Version>>
+        + updateDetails(...): void
+        + changeStatus(newStatus: AircraftStatus): void
+    }
+
+    class RegistrationNumber <<Value Object>> {
+        - number: String
+        + getNumber(): String
+        + validate(): void
+    }
+
+    enum AircraftStatus {
+        AVAILABLE
+        UNDER_MAINTENANCE
+        INACTIVE
+    }
+
+    class MaintenanceRecord <<Aggregate Root>> {
+        - recordId: UUID
+        - aircraftRegistration: RegistrationNumber
+        - status: MaintenanceStatus
+        - description: String
+        - startDate: LocalDateTime
+        - expectedDuration: Integer
+        - cost: BigDecimal
+        - notes: String
+        - version: Long <<@Version>>
+        + changeStatus(newStatus: MaintenanceStatus): void
+        + updateNotes(notes: String): void
+    }
+
+    enum MaintenanceStatus {
+        SCHEDULED
+        IN_PROGRESS
+        COMPLETED
+        CANCELLED
+    }
+}
+
+package "Persistence & Concurrency (JPA)" {
+    interface AircraftRepository {
+        + findByRegistrationNumber(reg: RegistrationNumber): Optional<Aircraft>
+        + save(aircraft: Aircraft): Aircraft
+        + findVersionFor(reg: RegistrationNumber): Long
+    }
+
+    interface MaintenanceRecordRepository {
+        + findByRecordId(id: UUID): Optional<MaintenanceRecord>
+        + save(record: MaintenanceRecord): MaintenanceRecord
+        + findVersionFor(id: UUID): Long
+    }
+}
+
+package "Event Dispatching" {
+    class DomainEventPublisher {
+        + publish(routingKey: String, event: DomainEvent): void
+    }
+}
+
+' Relations
+AircraftController --> RegisterAircraftUseCase : invokes
+AircraftController --> UpdateAircraftUseCase : invokes
+MaintenanceController --> CreateMaintenanceRecordUseCase : invokes
+MaintenanceController --> UpdateMaintenanceRecordUseCase : invokes
+
+RegisterAircraftUseCase --> AircraftRepository : persists
+RegisterAircraftUseCase --> DomainEventPublisher : emits AircraftRegisteredEvent
+UpdateAircraftUseCase --> AircraftRepository : checks @Version & persists
+UpdateAircraftUseCase --> DomainEventPublisher : emits AircraftStatusChangedEvent
+
+CreateMaintenanceRecordUseCase --> MaintenanceRecordRepository : persists
+CreateMaintenanceRecordUseCase --> DomainEventPublisher : emits MaintenanceScheduledEvent
+UpdateMaintenanceRecordUseCase --> MaintenanceRecordRepository : checks @Version & persists
+UpdateMaintenanceRecordUseCase --> DomainEventPublisher : emits MaintenanceCompletedEvent
+
+Aircraft "1" *-- "1" RegistrationNumber : contains
+Aircraft "1" *-- "1" AircraftStatus : has
+MaintenanceRecord "1" *-- "1" RegistrationNumber : references
+MaintenanceRecord "1" *-- "1" MaintenanceStatus : has
+
+@enduml

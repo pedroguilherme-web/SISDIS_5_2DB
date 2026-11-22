@@ -1,0 +1,160 @@
+@startuml _code_cqrs_projections
+skinparam classAttributeIconSize 0
+skinparam monochrome false
+skinparam shadowing false
+skinparam roundcorner 8
+skinparam class {
+    BackgroundColor #FFFFFF
+    BorderColor #2C3E50
+    ArrowColor #2980B9
+}
+
+title C4 Level 4: Code Diagram - CQRS Read Model & Event-Driven Projections (Aircraft & Maintenance Service)
+
+package "Infrastructure Layer (REST / Web)" {
+    class UnicornsController <<@RestController>> {
+        - readModelRepository: AircraftReadModelRepository
+        - aircraftRepository: AircraftRepository
+        + getAllAirplanesMood(): ResponseEntity<List<AircraftMoodResponse>>
+        + getAirplaneMoodByRegistration(registration: String): ResponseEntity<AircraftMoodResponse>
+        - ensureReadModelPopulated(): void
+    }
+
+    class AircraftMoodResponse <<record>> {
+        + registrationNumber(): String
+        + model(): String
+        + operationalStatus(): String
+        + mood(): String
+        + sparkleLevel(): Integer
+        + moodReason(): String
+        + lastUpdated(): Instant
+        + {static} fromReadModel(model: AircraftReadModel): AircraftMoodResponse
+    }
+}
+
+package "CQRS Read Model Projections" {
+    class AircraftReadModel <<@Entity>> {
+        - registrationNumber: String <<@Id>>
+        - modelName: String
+        - status: String
+        - seatCapacity: Integer
+        - range: Double
+        - totalOperationalHours: Double
+        - pendingMaintenanceCount: Integer
+        - moodStatus: String
+        - sparkleLevel: Integer
+        - moodReason: String
+        - lastUpdated: Instant
+        + recalculateMood(): void
+        + getMoodStatus(): String
+        + getSparkleLevel(): Integer
+    }
+
+    interface AircraftReadModelRepository <<@Repository>> {
+        + findByRegistrationNumber(reg: String): Optional<AircraftReadModel>
+        + findAll(): List<AircraftReadModel>
+    }
+
+    class AircraftProjectionListener <<@Component>> {
+        - readModelRepository: AircraftReadModelRepository
+        + onAircraftRegistered(event: AircraftRegisteredEvent): void <<@EventListener, @RabbitListener>>
+        + onAircraftStatusChanged(event: AircraftStatusChangedEvent): void <<@EventListener, @RabbitListener>>
+        + onMaintenanceScheduled(event: MaintenanceScheduledEvent): void <<@EventListener, @RabbitListener>>
+        + onMaintenanceCompleted(event: MaintenanceCompletedEvent): void <<@EventListener, @RabbitListener>>
+        + onFlightCompleted(event: FlightCompletedEvent): void <<@EventListener, @RabbitListener>>
+    }
+}
+
+package "Messaging & Event Infrastructure (AMQP)" {
+    class RabbitMQConfig <<@Configuration>> {
+        + {static} EXCHANGE_NAME: String = "aisafe.exchange"
+        + {static} ROUTING_KEY_AIRCRAFT_REGISTERED: String
+        + {static} ROUTING_KEY_AIRCRAFT_STATUS_CHANGED: String
+        + {static} ROUTING_KEY_MAINTENANCE_SCHEDULED: String
+        + {static} ROUTING_KEY_MAINTENANCE_COMPLETED: String
+        + {static} ROUTING_KEY_FLIGHT_COMPLETED: String
+        + aisafeExchange(): TopicExchange
+        + cqrsProjectionsQueue(): Queue
+        + cqrsProjectionsBinding(): Binding
+        + jsonMessageConverter(): MessageConverter
+        + rabbitTemplate(): RabbitTemplate
+    }
+
+    class DomainEventPublisher <<@Component>> {
+        - rabbitTemplate: RabbitTemplate
+        - eventPublisher: ApplicationEventPublisher
+        - exchangeName: String
+        + publish(routingKey: String, event: DomainEvent): void
+    }
+}
+
+package "Domain Events Hierarchy" {
+    abstract class DomainEvent {
+        - eventId: String
+        - timestamp: Instant
+        - eventType: String
+        + getEventId(): String
+        + getTimestamp(): Instant
+        + getEventType(): String
+    }
+
+    class AircraftRegisteredEvent {
+        - registrationNumber: String
+        - modelName: String
+        - status: String
+        - seatCapacity: Integer
+        - range: Double
+        - features: List<String>
+    }
+
+    class AircraftStatusChangedEvent {
+        - registrationNumber: String
+        - previousStatus: String
+        - newStatus: String
+        - reason: String
+    }
+
+    class MaintenanceScheduledEvent {
+        - recordId: String
+        - registrationNumber: String
+        - scheduledDate: String
+        - description: String
+    }
+
+    class MaintenanceCompletedEvent {
+        - recordId: String
+        - registrationNumber: String
+        - completedDate: String
+        - cost: BigDecimal
+        - notes: String
+    }
+
+    class FlightCompletedEvent {
+        - flightId: String
+        - aircraftRegistration: String
+        - flightDurationHours: Double
+    }
+}
+
+' Inheritance
+DomainEvent <|-- AircraftRegisteredEvent
+DomainEvent <|-- AircraftStatusChangedEvent
+DomainEvent <|-- MaintenanceScheduledEvent
+DomainEvent <|-- MaintenanceCompletedEvent
+DomainEvent <|-- FlightCompletedEvent
+
+' Controller dependencies
+UnicornsController --> AircraftReadModelRepository : queries
+UnicornsController ..> AircraftMoodResponse : returns DTO
+
+' Projection dependencies
+AircraftReadModelRepository ..> AircraftReadModel : manages entity
+AircraftProjectionListener --> AircraftReadModelRepository : updates projection
+AircraftProjectionListener ..> DomainEvent : consumes
+
+' Messaging dependencies
+DomainEventPublisher ..> DomainEvent : dispatches
+DomainEventPublisher ..> RabbitMQConfig : uses topology
+AircraftProjectionListener ..> RabbitMQConfig : binds to queue
+
+@enduml
