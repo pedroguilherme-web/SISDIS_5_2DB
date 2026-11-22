@@ -1,5 +1,7 @@
 package aisafe.shared.infrastructure;
 
+import aisafe.aircrafts.cqrs.projections.AircraftReadModel;
+import aisafe.aircrafts.cqrs.projections.AircraftReadModelRepository;
 import aisafe.aircrafts.domain.*;
 import aisafe.maintenance.domain.*;
 import aisafe.security.domain.Role;
@@ -30,6 +32,7 @@ public class Bootstrap implements ApplicationRunner {
     private final MaintenancePartRepository maintenancePartRepository;
     private final MaintenanceTemplateRepository maintenanceTemplateRepository;
     private final MaintenanceRecordRepository maintenanceRecordRepository;
+    private final AircraftReadModelRepository aircraftReadModelRepository;
     private final PasswordEncoder passwordEncoder;
 
     public Bootstrap(UserRepository userRepository,
@@ -38,6 +41,7 @@ public class Bootstrap implements ApplicationRunner {
                      MaintenancePartRepository maintenancePartRepository,
                      MaintenanceTemplateRepository maintenanceTemplateRepository,
                      MaintenanceRecordRepository maintenanceRecordRepository,
+                     AircraftReadModelRepository aircraftReadModelRepository,
                      PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.aircraftModelRepository = aircraftModelRepository;
@@ -45,6 +49,7 @@ public class Bootstrap implements ApplicationRunner {
         this.maintenancePartRepository = maintenancePartRepository;
         this.maintenanceTemplateRepository = maintenanceTemplateRepository;
         this.maintenanceRecordRepository = maintenanceRecordRepository;
+        this.aircraftReadModelRepository = aircraftReadModelRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -129,6 +134,21 @@ public class Bootstrap implements ApplicationRunner {
                     "Overhaul completed successfully.", template, MaintenanceStatus.COMPLETED,
                     Set.of(MaintenanceComponent.ENGINE), aircraft1.getRegistrationNumber(),
                     java.math.BigDecimal.valueOf(3200.00), LocalDateTime.parse("2024-07-02T16:00:00")));
+        }
+
+        // Bootstrap CQRS read model projections
+        List<Aircraft> allAircrafts = aircraftRepository.findAll();
+        for (Aircraft a : allAircrafts) {
+            String reg = a.getRegistrationNumber().getNumber();
+            if (aircraftReadModelRepository.findByRegistrationNumber(reg).isEmpty()) {
+                aircraftReadModelRepository.save(new AircraftReadModel(
+                        reg,
+                        a.getModel() != null ? a.getModel().getModelName() : "Unknown",
+                        a.getStatus() != null ? a.getStatus().name() : "AVAILABLE",
+                        a.getModel() != null ? a.getModel().getMaximumSeatingCapacity() : 180,
+                        a.getModel() != null ? a.getModel().getMaxRange() : 6000.0
+                ));
+            }
         }
     }
 }

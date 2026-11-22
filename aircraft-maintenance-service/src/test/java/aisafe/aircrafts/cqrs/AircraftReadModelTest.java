@@ -6,56 +6,42 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("AircraftReadModel CQRS Projection Tests")
+@DisplayName("AircraftReadModel Tests")
 class AircraftReadModelTest {
 
     @Test
-    @DisplayName("Should project UNDER_CARE mood when aircraft is UNDER_MAINTENANCE")
-    void shouldProjectUnderCareMoodWhenUnderMaintenance() {
+    @DisplayName("Should project UNDER_MAINTENANCE readiness when aircraft is UNDER_MAINTENANCE")
+    void shouldProjectUnderMaintenanceWhenUnderMaintenance() {
         AircraftReadModel model = new AircraftReadModel("CS-TKA", "Airbus A320neo", "UNDER_MAINTENANCE", 150.0, 1);
 
-        assertEquals("UNDER_CARE", model.getMoodStatus());
-        assertEquals(45, model.getSparkleLevel());
-        assertTrue(model.getMoodReason().contains("hangar"));
+        assertEquals("UNDER_MAINTENANCE", model.getReadinessStatus());
+        assertTrue(model.getOperationalSummary().contains("hangar"));
     }
 
     @Test
-    @DisplayName("Should project GRUMPY mood when aircraft is INACTIVE")
-    void shouldProjectGrumpyMoodWhenInactive() {
+    @DisplayName("Should project GROUNDED readiness when aircraft is INACTIVE")
+    void shouldProjectGroundedWhenInactive() {
         AircraftReadModel model = new AircraftReadModel("CS-TKB", "Boeing 737 MAX", "INACTIVE", 200.0, 0);
 
-        assertEquals("GRUMPY", model.getMoodStatus());
-        assertEquals(15, model.getSparkleLevel());
-        assertTrue(model.getMoodReason().contains("Grounded"));
+        assertEquals("GROUNDED", model.getReadinessStatus());
+        assertTrue(model.getOperationalSummary().contains("grounded"));
     }
 
     @Test
-    @DisplayName("Should project TIRED mood when pending maintenance count > 0")
-    void shouldProjectTiredMoodWhenPendingMaintenance() {
+    @DisplayName("Should project MAINTENANCE_DUE readiness when pending maintenance count > 0")
+    void shouldProjectMaintenanceDueWhenPendingMaintenance() {
         AircraftReadModel model = new AircraftReadModel("CS-TKC", "Embraer E195", "AVAILABLE", 650.0, 1);
 
-        assertEquals("TIRED", model.getMoodStatus());
-        assertEquals(60, model.getSparkleLevel());
-        assertTrue(model.getMoodReason().contains("inspection is due"));
+        assertEquals("MAINTENANCE_DUE", model.getReadinessStatus());
+        assertTrue(model.getOperationalSummary().contains("pending"));
     }
 
     @Test
-    @DisplayName("Should project PROUD mood when total operational hours > 1000")
-    void shouldProjectProudMoodWhenVeteranAircraft() {
-        AircraftReadModel model = new AircraftReadModel("CS-TKD", "Airbus A330", "AVAILABLE", 1200.0, 0);
-
-        assertEquals("PROUD", model.getMoodStatus());
-        assertEquals(88, model.getSparkleLevel());
-        assertTrue(model.getMoodReason().contains("Veteran"));
-    }
-
-    @Test
-    @DisplayName("Should project HAPPY mood when operational hours are normal and no maintenance pending")
-    void shouldProjectHappyMoodWhenOptimalConditions() {
+    @DisplayName("Should project READY_FOR_FLIGHT readiness when aircraft is AVAILABLE and no maintenance pending")
+    void shouldProjectReadyForFlightWhenOptimalConditions() {
         AircraftReadModel model = new AircraftReadModel("CS-TKE", "Airbus A321LR", "AVAILABLE", 100.0, 0);
 
-        assertEquals("HAPPY", model.getMoodStatus());
-        assertEquals(98, model.getSparkleLevel());
-        assertTrue(model.getMoodReason().contains("Optimal"));
+        assertEquals("READY_FOR_FLIGHT", model.getReadinessStatus());
+        assertTrue(model.getOperationalSummary().contains("ready"));
     }
 }

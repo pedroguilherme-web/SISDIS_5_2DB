@@ -1,26 +1,34 @@
 @startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
-title Diagrama de Contentores (Nível 2) - AISafe Flight Management System
+title Diagrama de Contentores (Nível 2) - AISafe Flight Management System com CQRS & AMQP
 
-Person(client, "Cliente / Utilizador", "Interage com o sistema de gestão de voos")
+Person(client, "Cliente / Operador", "Interage com o sistema de gestão de voos via Web SPA ou Postman")
+
+System_Boundary(broker_boundary, "Mensageria Assíncrona (Docker)") {
+    Container(rabbitmq, "Message Broker (RabbitMQ)", "RabbitMQ 3.13 / AMQP 0-9-1 [Port 5672/15672]", "Topic exchange 'aisafe.exchange' e filas duráveis para garantia de consistência eventual e projeções CQRS.")
+}
 
 System_Boundary(aisafe_system, "AISafe Flight Management System") {
 
-    Container(aircraft_service, "Aircraft & Maintenance Service", "Spring Boot, REST", "Gere modelos e instâncias de aeronaves, estado operacional e registos de manutenção. Múltiplas instâncias (ex: port 8081/8082).")
+    Container(aircraft_service, "Aircraft & Maintenance Service", "Spring Boot [Ports 8081, 8082, 8083]", "Gere modelos e instâncias de aeronaves, ordens de manutenção, projeções CQRS (/api/v2/fleet) e publicação de eventos de domínio.")
 
-    Container(airports_service, "Airports & Routes Service", "Spring Boot, REST", "Regista e consulta aeroportos, dados de certificação de pistas e histórico de rotas. Múltiplas instâncias (ex: port 8091/8092).")
+    Container(airports_service, "Airports & Routes Service", "Spring Boot [Ports 8091, 8092]", "Regista e consulta aeroportos, certificações de pistas e histórico de rotas.")
 
-    Container(flight_ops_service, "Flight Operations Service", "Spring Boot, REST", "Agenda voos, atribui aeronaves a rotas e verifica a disponibilidade em tempo real. Múltiplas instâncias (ex: port 8071/8072).")
+    Container(flight_ops_service, "Flight Operations Service", "Spring Boot [Ports 8071, 8072]", "Agenda voos, atribui aeronaves a rotas e publica eventos de telemetria de voo.")
 }
 
-Rel(client, aircraft_service, "Faz pedidos HTTP GET/POST", "HTTP/REST")
-Rel(client, airports_service, "Faz pedidos HTTP GET/POST", "HTTP/REST")
-Rel(client, flight_ops_service, "Faz pedidos HTTP GET/POST", "HTTP/REST")
+Rel(client, aircraft_service, "Comandos e Consultas CQRS (GET /api/v2/fleet)", "HTTP/REST")
+Rel(client, airports_service, "Consultas e registos de aeroportos/rotas", "HTTP/REST")
+Rel(client, flight_ops_service, "Agendamento e monitorização de voos", "HTTP/REST")
 
 Rel(flight_ops_service, aircraft_service, "Consulta disponibilidade de aeronaves", "HTTP/REST")
 Rel(flight_ops_service, airports_service, "Consulta rotas e portos", "HTTP/REST")
-Rel(aircraft_service, flight_ops_service, "Comunica atualizações de estado", "HTTP/REST")
+Rel(aircraft_service, flight_ops_service, "Consulta horas de voo para manutenção", "HTTP/REST")
+
+Rel(aircraft_service, rabbitmq, "Publica eventos (aircraft.*, maintenance.*)", "AMQP 0-9-1")
+Rel(flight_ops_service, rabbitmq, "Publica eventos (flight.completed)", "AMQP 0-9-1")
+Rel(rabbitmq, aircraft_service, "Distribui eventos para a fila de projeções CQRS", "AMQP 0-9-1")
 
 SHOW_LEGEND()
 @enduml

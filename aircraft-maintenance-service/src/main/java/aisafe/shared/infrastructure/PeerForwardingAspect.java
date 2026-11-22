@@ -22,7 +22,6 @@ import java.util.List;
 
 /**
  * Aspect implementing Peer-to-Peer HTTP GET forwarding for distributed replicas.
- * Taught in LETI-SIDIS Week 3 (PL3) and Week 5.
  * 
  * If an entity query misses the local database (throwing a NotFoundException),
  * this aspect intercepts the call and forwards a unicast HTTP GET to configured peers.

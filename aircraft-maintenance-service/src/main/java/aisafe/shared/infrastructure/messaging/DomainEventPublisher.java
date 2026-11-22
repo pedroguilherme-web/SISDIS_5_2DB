@@ -10,9 +10,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 /**
- * Resilient Domain Event Publisher.
- * Publishes events over AMQP to RabbitMQ and also broadcasts locally via Spring ApplicationEventPublisher.
- * Ensures graceful fallback if RabbitMQ broker is offline during tests or standalone dev.
+ * Publisher for domain events via RabbitMQ and local Spring events.
  */
 @Component
 public class DomainEventPublisher {
