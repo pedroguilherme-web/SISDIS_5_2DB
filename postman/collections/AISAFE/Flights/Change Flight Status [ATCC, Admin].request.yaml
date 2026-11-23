@@ -1,0 +1,16 @@
+$kind: http-request
+url: "{{base_url}}/api/flights/{{flight_id}}/status"
+method: PATCH
+body:
+  type: json
+  content: |-
+    {
+        "status": "IN_FLIGHT"
+    }
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Flight is IN_FLIGHT", () => pm.expect(pm.response.json().status).to.eql("IN_FLIGHT"));
+    language: text/javascript
+order: 1500

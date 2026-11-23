@@ -1,60 +1,53 @@
 package aisafe.flights.application;
 
 import aisafe.flights.application.dtos.FlightResponse;
+import aisafe.flights.application.ports.AircraftServiceClient;
+import aisafe.flights.application.ports.FlightPeerClient;
 import aisafe.flights.domain.ScheduledFlightRepository;
 import aisafe.shared.application.UseCase;
 import aisafe.shared.domain.ResourceNotFoundException;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpEntity;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
+import lombok.extern.slf4j.Slf4j;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
+@Slf4j
 @UseCase(readOnly = true)
 @RequiredArgsConstructor
 public class ViewScheduledFlightsByAircraftUseCase {
-
     private final ScheduledFlightRepository scheduledFlightRepository;
-    private final RestTemplate restTemplate;
+    private final AircraftServiceClient aircraftService;
+    private final FlightPeerClient peers;
 
-    @Value("${services.aircraft.url:http://localhost:8081}")
-    private String aircraftServiceUrl;
+    public List<FlightResponse> execute(String aircraftId, QueryScope scope) {
+        String registration = aircraftId.trim().toUpperCase();
 
-    private HttpEntity<Void> createAuthEntity() {
-        HttpHeaders headers = new HttpHeaders();
-        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attrs != null) {
-            HttpServletRequest currentRequest = attrs.getRequest();
-            String authHeader = currentRequest.getHeader(HttpHeaders.AUTHORIZATION);
-            if (authHeader != null) {
-                headers.set(HttpHeaders.AUTHORIZATION, authHeader);
-            }
+        if (scope.includesPeers()) {
+            ensureAircraftExists(registration);
         }
-        return new HttpEntity<>(headers);
+
+        List<FlightResponse> flights = new ArrayList<>(scheduledFlightRepository.findByAircraftRegistration(registration)
+                .stream()
+                .map(FlightResponse::from)
+                .toList());
+
+        if (scope.includesPeers()) {
+            flights.addAll(peers.findFlightsByAircraft(registration));
+        }
+
+        flights.sort(Comparator.comparing(FlightResponse::departureDateTime));
+        return flights;
     }
 
-    public List<FlightResponse> execute(String aircraftId) {
-        String normalizedAircraftId = aircraftId.trim().toUpperCase();
-
+    private void ensureAircraftExists(String registration) {
         try {
-            String aircraftUrl = aircraftServiceUrl + "/api/aircrafts/" + normalizedAircraftId;
-            HttpEntity<Void> entity = createAuthEntity();
-            restTemplate.exchange(aircraftUrl, HttpMethod.GET, entity, Void.class);
-        } catch (HttpClientErrorException.NotFound e) {
-            throw new ResourceNotFoundException("Aircraft not found: " + normalizedAircraftId) {};
-        } catch (HttpClientErrorException.Forbidden e) {
-            // Ignora se o perfil apenas tiver permissão de leitura de voos
+            if (aircraftService.findByRegistration(registration).isEmpty()) {
+                throw new ResourceNotFoundException("Aircraft not found: " + registration);
+            }
+        } catch (ExternalServiceUnavailableException e) {
+            log.warn("Could not verify aircraft {}: {}. Listing flights anyway.", registration, e.getMessage());
         }
-
-        return scheduledFlightRepository.findByAircraftRegistration(normalizedAircraftId).stream()
-                .map(FlightResponse::from)
-                .toList();
     }
 }

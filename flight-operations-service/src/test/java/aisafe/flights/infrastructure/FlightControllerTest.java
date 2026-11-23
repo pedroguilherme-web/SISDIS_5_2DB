@@ -1,12 +1,17 @@
 package aisafe.flights.infrastructure;
 
+import aisafe.flights.application.ChangeFlightStatusUseCase;
+import aisafe.flights.application.ExternalServiceUnavailableException;
 import aisafe.flights.application.ImportFlightsUseCase;
+import aisafe.flights.application.QueryScope;
 import aisafe.flights.application.ScheduleFlightUseCase;
 import aisafe.flights.application.ViewScheduledFlightsByAircraftUseCase;
 import aisafe.flights.application.dtos.FlightResponse;
 import aisafe.flights.application.dtos.ScheduleFlightRequest;
 import aisafe.flights.domain.AircraftUnavailableException;
+import aisafe.flights.domain.FlightNotFoundException;
 import aisafe.flights.domain.FlightStatus;
+import aisafe.flights.domain.InvalidFlightStatusTransitionException;
 import aisafe.shared.application.dtos.BulkImportResult;
 import aisafe.shared.infrastructure.GlobalExceptionHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +20,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -28,93 +32,139 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @ExtendWith(MockitoExtension.class)
 class FlightControllerTest {
+    private static final OffsetDateTime DEPARTURE = OffsetDateTime.of(2026, 12, 1, 8, 0, 0, 0, ZoneOffset.UTC);
 
     private MockMvc mockMvc;
     private ObjectMapper objectMapper;
 
-    @Mock
-    private ScheduleFlightUseCase scheduleFlightUseCase;
-
-    @Mock
-    private ViewScheduledFlightsByAircraftUseCase viewScheduledFlightsByAircraftUseCase;
-
-    @Mock
-    private ImportFlightsUseCase importFlightsUseCase;
+    @Mock private ScheduleFlightUseCase scheduleFlightUseCase;
+    @Mock private ViewScheduledFlightsByAircraftUseCase viewScheduledFlightsByAircraftUseCase;
+    @Mock private ChangeFlightStatusUseCase changeFlightStatusUseCase;
+    @Mock private ImportFlightsUseCase importFlightsUseCase;
 
     @InjectMocks
     private FlightController flightController;
 
+    private final FlightResponse flight = new FlightResponse("f-1", "CS-TRP", "A320", "LIS", "OPO",
+            DEPARTURE, DEPARTURE.plusHours(2), FlightStatus.SCHEDULED, 0);
+
     @BeforeEach
     void setUp() {
-        objectMapper = new ObjectMapper();
-        objectMapper.findAndRegisterModules();
+        objectMapper = new ObjectMapper().findAndRegisterModules();
         mockMvc = MockMvcBuilders.standaloneSetup(flightController)
-                .setControllerAdvice(new GlobalExceptionHandler())
+                .setControllerAdvice(new FlightApiExceptionHandler(), new GlobalExceptionHandler())
                 .build();
     }
 
+    private String scheduleBody() throws Exception {
+        return objectMapper.writeValueAsString(new ScheduleFlightRequest("CS-TRP", "LIS", "OPO", DEPARTURE, DEPARTURE.plusHours(2)));
+    }
+
     @Test
-    void shouldScheduleFlightAndReturn201() throws Exception {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC).plusDays(1);
-        OffsetDateTime arrival = departure.plusHours(2);
+    void shouldScheduleFlightAndReturn201WithLinks() throws Exception {
+        when(scheduleFlightUseCase.execute(any(ScheduleFlightRequest.class), eq(FlightStatus.SCHEDULED), eq(QueryScope.CLUSTER))).thenReturn(flight);
 
-        ScheduleFlightRequest request = new ScheduleFlightRequest("CS-TRP", "LIS", "OPO", departure, arrival);
-        FlightResponse mockResponse = new FlightResponse(1L, "CS-TRP", "LIS", "OPO", departure, arrival, FlightStatus.SCHEDULED);
-
-        Mockito.when(scheduleFlightUseCase.execute(any(ScheduleFlightRequest.class))).thenReturn(mockResponse);
-
-        mockMvc.perform(post("/api/flights")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+        mockMvc.perform(post("/api/flights").contentType(MediaType.APPLICATION_JSON).content(scheduleBody()))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.id").value(1L))
-                .andExpect(jsonPath("$.aircraftId").value("CS-TRP"));
+                .andExpect(jsonPath("$.id").value("f-1"))
+                .andExpect(jsonPath("$.aircraftModel").value("A320"))
+                .andExpect(jsonPath("$.status").value("SCHEDULED"))
+                .andExpect(jsonPath("$..href").isNotEmpty());
+    }
+
+    @Test
+    void shouldReturn400WhenRequestBodyIsIncomplete() throws Exception {
+        mockMvc.perform(post("/api/flights").contentType(MediaType.APPLICATION_JSON).content("{\"aircraftId\":\"CS-TRP\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(scheduleFlightUseCase);
     }
 
     @Test
     void shouldReturn409WhenAircraftIsUnavailable() throws Exception {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC).plusDays(1);
-        OffsetDateTime arrival = departure.plusHours(2);
+        when(scheduleFlightUseCase.execute(any(ScheduleFlightRequest.class), eq(FlightStatus.SCHEDULED), eq(QueryScope.CLUSTER))).thenThrow(new AircraftUnavailableException("CS-TRP"));
 
-        ScheduleFlightRequest request = new ScheduleFlightRequest("CS-TRP", "LIS", "OPO", departure, arrival);
-
-        Mockito.when(scheduleFlightUseCase.execute(any(ScheduleFlightRequest.class)))
-                .thenThrow(new AircraftUnavailableException("CS-TRP"));
-
-        mockMvc.perform(post("/api/flights")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.message").value("Aircraft CS-TRP is unavailable in the requested timeframe."));
+        mockMvc.perform(post("/api/flights").contentType(MediaType.APPLICATION_JSON).content(scheduleBody()))
+                .andExpect(status().isConflict());
     }
 
     @Test
-    void shouldGetScheduledFlightsByAircraftAndReturn200() throws Exception {
-        String aircraftId = "CS-TRP";
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        FlightResponse mockResponse = new FlightResponse(1L, aircraftId, "LIS", "OPO", departure, departure.plusHours(2), FlightStatus.SCHEDULED);
+    void shouldReturn503WithRetryAfterWhenADependencyIsDown() throws Exception {
+        when(scheduleFlightUseCase.execute(any(ScheduleFlightRequest.class), eq(FlightStatus.SCHEDULED), eq(QueryScope.CLUSTER)))
+                .thenThrow(new ExternalServiceUnavailableException("Aircraft & Maintenance service"));
 
-        Mockito.when(viewScheduledFlightsByAircraftUseCase.execute(eq(aircraftId))).thenReturn(List.of(mockResponse));
-
-        mockMvc.perform(get("/api/flights").param("aircraftId", aircraftId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].aircraftId").value("CS-TRP"))
-                .andExpect(jsonPath("$.content[0].originIataCode").value("LIS"))
-                .andExpect(jsonPath("$.content[0].destinationIataCode").value("OPO"));
+        mockMvc.perform(post("/api/flights").contentType(MediaType.APPLICATION_JSON).content(scheduleBody()))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(header().string("Retry-After", "5"))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Aircraft & Maintenance service")));
     }
+
+    @Test
+    void shouldListFlightsOfTheWholeClusterForAClient() throws Exception {
+        when(viewScheduledFlightsByAircraftUseCase.execute("CS-TRP", QueryScope.CLUSTER)).thenReturn(List.of(flight));
+
+        mockMvc.perform(get("/api/flights").param("aircraftId", "CS-TRP"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value("f-1"))
+                .andExpect(jsonPath("$.content[0].originIataCode").value("LIS"));
+    }
+
+    @Test
+    void shouldListOnlyLocalFlightsForAPeer() throws Exception {
+        when(viewScheduledFlightsByAircraftUseCase.execute("CS-TRP", QueryScope.LOCAL)).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/flights").param("aircraftId", "CS-TRP").header(PeerForwarding.HEADER, "true"))
+                .andExpect(status().isOk());
+        verify(viewScheduledFlightsByAircraftUseCase).execute("CS-TRP", QueryScope.LOCAL);
+    }
+
+    @Test
+    void shouldChangeStatus() throws Exception {
+        FlightResponse completed = new FlightResponse("f-1", "CS-TRP", "A320", "LIS", "OPO",
+                DEPARTURE, DEPARTURE.plusHours(2), FlightStatus.COMPLETED, 2);
+        when(changeFlightStatusUseCase.execute("f-1", FlightStatus.COMPLETED, QueryScope.CLUSTER)).thenReturn(completed);
+
+        mockMvc.perform(patch("/api/flights/f-1/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"COMPLETED\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("COMPLETED"));
+    }
+
+    @Test
+    void shouldReturn409ForAnInvalidTransition() throws Exception {
+        when(changeFlightStatusUseCase.execute(eq("f-1"), eq(FlightStatus.SCHEDULED), any()))
+                .thenThrow(new InvalidFlightStatusTransitionException(FlightStatus.COMPLETED, FlightStatus.SCHEDULED));
+
+        mockMvc.perform(patch("/api/flights/f-1/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"SCHEDULED\"}"))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void shouldReturn404WhenNoReplicaHasTheFlight() throws Exception {
+        when(changeFlightStatusUseCase.execute(eq("nope"), eq(FlightStatus.CANCELED), any()))
+                .thenThrow(new FlightNotFoundException("nope"));
+
+        mockMvc.perform(patch("/api/flights/nope/status").contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CANCELED\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturn400ForAMissingStatus() throws Exception {
+        mockMvc.perform(patch("/api/flights/f-1/status").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(changeFlightStatusUseCase);
+    }
+
     @Test
     void shouldImportFlightsAndReturn201() throws Exception {
         MockMultipartFile file = new MockMultipartFile("file", "flights.csv", "text/csv", "dummy content".getBytes());
-
         BulkImportResult<String> mockResult = new BulkImportResult<>();
         mockResult.addSuccess("FL123");
-
-        Mockito.when(importFlightsUseCase.execute(any())).thenReturn(mockResult);
+        when(importFlightsUseCase.execute(any())).thenReturn(mockResult);
 
         mockMvc.perform(multipart("/api/flights/import").file(file))
                 .andExpect(status().isCreated())

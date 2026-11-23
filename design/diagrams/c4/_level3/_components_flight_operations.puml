@@ -3,48 +3,66 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Component Diagram - Flight Operations Service (C4 Level 3)
+title Component Diagram - Flight Operations Service (C4 Level 3, Assignment 2: CQRS + AMQP)
 
-Container_Ext(spa, "Web Client / API Gateway", "React SPA / Postman", "Sends JSON/REST requests to manage flight operations.")
-Container_Ext(peer_instance, "Peer Replica Instances", "Spring Boot (Port 8072)", "Cloned peer replicas hosting partitioned flight schedules.")
-Container_Ext(aircraft_service, "Aircraft & Maintenance Service", "Spring Boot (Port 8081)", "Provides aircraft telemetry and operational availability.")
-Container_Ext(route_service, "Airports & Routes Service", "Spring Boot (Port 8091)", "Provides airport capacities, runways, and route distances.")
+Container_Ext(spa, "Web Client / Postman", "HTTP REST", "Commands on /api/flights, queries on /api/v2/flights and /api/v2/unicorns.")
+Container_Ext(peer_instance, "Peer Replica", "Flight Operations (Port 8072)", "Owns its own partition of the write model and a full copy of the read model.")
+Container_Ext(aircraft_service, "Aircraft & Maintenance Service", "Spring Boot (8081-8083)", "Publishes aircraft.registered / aircraft.status.changed; consumes flight.completed.")
+Container_Ext(route_service, "Airports & Routes Service", "Spring Boot (8092-8093)", "Publishes routes.route.changed on aisafe.routes.events.")
+ContainerQueue_Ext(broker, "RabbitMQ", "AMQP 0-9-1", "Topic exchanges aisafe.exchange and aisafe.routes.events; one durable queue set per replica.")
 
 Container_Boundary(fo_container, "Flight Operations Service Container [Port 8071]") {
 
-    Component(security_filter, "Security & Auth Filter", "Spring Security / JWT", "Intercepts inbound HTTP requests and verifies Bearer JWT tokens (from shared-core).")
+    Component(security_filter, "Security Filter Chains", "Spring Security / JWT", "Shared chain for client endpoints; FlightSecurityConfig for status changes, inter-service endpoints and /api/v2.")
 
-    Component(flight_ctrl, "FlightController", "Spring MVC REST Controller", "Exposes /api/flights/** for scheduling and querying flights.")
+    Component(command_api, "FlightController", "Spring MVC", "Commands: schedule, change status, CSV import (+ v1 reads kept for compatibility).")
+    Component(stats_api, "FlightStatisticsController", "Spring MVC", "v1 inter-service contract: hours, exists, timeline, top-models, count, conflicts.")
+    Component(query_api, "FlightQueryController + UnicornsController", "Spring MVC", "CQRS query API /api/v2/flights and /api/v2/unicorns.")
 
-    Component(forwarding_aspect, "PeerForwardingAspect", "Spring AOP (@Around)", "Intercepts HTTP GET requests. If a local miss occurs, forwards unicast HTTP GET to configured peer URLs (8072).")
+    Component(usecases, "Command Use Cases", "@UseCase (transactional, audited)", "ScheduleFlight, ChangeFlightStatus, ImportFlights. Publish a FlightEvent after saving.")
+    Component(domain, "Domain", "Plain Java", "ScheduledFlight (UUID, lifecycle, revision), FlightStatus transitions.")
+    Component(write_repo, "Write Model Repository", "Spring Data JPA", "scheduled_flight (aircraft owned by this replica) + per-aircraft lock row (SELECT ... FOR UPDATE).")
 
-    Component(flight_usecases, "Flight Application Services", "Spring Use Cases", "Executes business logic: ScheduleFlightUseCase, ViewScheduledFlightsByAircraftUseCase.")
+    Component(dispatcher, "FlightEventDispatcher", "Transactional outbox", "Writes the messages to outbox_message in the command transaction; after commit projects locally and triggers the relay.")
+    Component(relay, "OutboxRelay", "@Scheduled + publisher confirms", "Publishes pending outbox messages in order; retries every 2 s while the broker is down.")
+    Component(ownership, "HashFlightOwnership", "hash(registration) mod replicas", "Picks the replica that owns each aircraft; commands for other aircraft are forwarded to their owner.")
+    Component(listeners, "EventListeners", "@RabbitListener", "Consumes flight events of other replicas, aircraft events, route events.")
+    Component(projector, "FlightProjector", "Idempotent by revision", "Updates flight_read_model and aircraft_activity_read_model (incl. mood).")
+    Component(query_service, "FlightQueryService", "Read-only", "Reads only the read-model tables.")
+    Component(rebuilder, "ReadModelRebuilder", "shared-core P2P search", "Rebuilds the read model from the write models of the cluster (startup / on demand).")
 
-    Component(rest_template, "Shared RestTemplate", "Spring RestClient", "HTTP client configured in shared-core with JWT propagation to call external services.")
+    Component(catalog, "Catalog clients", "Local catalog + HTTP fallback", "aircraft_catalog and route_catalog fed by events; HTTP with failover only when missing or old.")
 
-    Component(flight_repo, "ScheduledFlight Repository", "Spring Data JPA", "Manages persistence for ScheduledFlight entities.")
-
-    Component(audit_aspect, "UseCaseLoggingAdvice", "Spring AOP", "Intercepts Use Cases to log actions into the Audit Log (from shared-core).")
-
-    Component(ex_handler, "GlobalExceptionHandler", "Spring @ControllerAdvice", "Translates domain exceptions into REST JSON errors (from shared-core).")
-
-    ContainerDb(local_db, "Local H2 Database", "H2 In-Memory (flight_operations_db_1)", "Stores scheduled flights and operational telemetry.")
+    ContainerDb(local_db, "Instance H2 Database", "Database-per-instance", "Write tables, read-model tables and catalogs of this replica only.")
 }
 
-Rel(spa, security_filter, "Sends REST requests", "JSON / HTTPS")
-Rel(security_filter, flight_ctrl, "Routes valid calls", "Java Method")
+Rel(spa, security_filter, "REST", "JSON / HTTP(S)")
+Rel(security_filter, command_api, "Commands")
+Rel(security_filter, query_api, "Queries")
+Rel(aircraft_service, stats_api, "GET hours, exists...", "HTTP")
 
-Rel(forwarding_aspect, flight_ctrl, "Intercepts GET execution on local miss", "AOP JoinPoint")
-Rel(forwarding_aspect, peer_instance, "Unicast HTTP GET forward (X-Peer-Forwarded: true)", "HTTP GET")
-
-Rel(flight_ctrl, flight_usecases, "Invokes", "Java Call")
-Rel(flight_usecases, rest_template, "Uses for inter-service validation", "Java Call")
-
-Rel(rest_template, aircraft_service, "Fetches aircraft availability", "JSON / HTTP REST")
-Rel(rest_template, route_service, "Fetches route definitions", "JSON / HTTP REST")
-
-Rel(flight_usecases, flight_repo, "Queries / persists flights", "Spring Data JPA")
-Rel(flight_repo, local_db, "Reads / writes flight tables", "JDBC / SQL")
-
-Rel(audit_aspect, flight_usecases, "Intercepts for audit logging", "AOP Advice")
+Rel(command_api, usecases, "Invokes")
+Rel(usecases, domain, "Creates / changes")
+Rel(usecases, write_repo, "Saves")
+Rel(usecases, catalog, "Aircraft / route checks")
+Rel(usecases, dispatcher, "FlightEvent (port)")
+Rel(dispatcher, projector, "In-process, after commit")
+Rel(dispatcher, relay, "Triggers after commit")
+Rel(relay, broker, "Publishes (confirmed)", "AMQP")
+Rel(usecases, ownership, "Who owns the aircraft?")
+Rel(usecases, peer_instance, "Forward schedule to the owner", "HTTP")
+Rel(broker, listeners, "Delivers (per-replica queues)", "AMQP")
+Rel(listeners, projector, "Flight / aircraft events")
+Rel(listeners, catalog, "Aircraft / route events")
+Rel(query_api, query_service, "Reads")
+Rel(query_api, rebuilder, "Rebuild")
+Rel(rebuilder, peer_instance, "POST /api/p2p/search", "HTTP + peer JWT")
+Rel(catalog, aircraft_service, "Fallback GET /api/aircrafts/{reg}", "HTTP")
+Rel(catalog, route_service, "Fallback GET /api/routes/{o}/{d}", "HTTP")
+Rel(aircraft_service, broker, "aircraft.* events", "AMQP")
+Rel(route_service, broker, "routes.* events", "AMQP")
+Rel(broker, aircraft_service, "flight.completed", "AMQP")
+Rel(write_repo, local_db, "JDBC")
+Rel(projector, local_db, "JDBC")
+Rel(query_service, local_db, "JDBC")
 @enduml

@@ -1,7 +1,5 @@
 package aisafe.flights.infrastructure.persistence.jpa;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -9,25 +7,22 @@ import org.springframework.data.repository.query.Param;
 import java.time.OffsetDateTime;
 import java.util.List;
 
-public interface SpringDataScheduledFlightRepository extends JpaRepository<ScheduledFlightJpaEntity, Long> {
-
-    // NOTA TÉCNICA: Como não existe tabela 'Aircraft' ou 'Model' neste microserviço,
-    // mapeamos provisoriamente para 'aircraftRegistrationNumber' no lugar do modelo.
-    @Query("SELECT f.aircraftRegistrationNumber AS modelName, COUNT(f.id) AS utilizationValue " +
+public interface SpringDataScheduledFlightRepository extends JpaRepository<ScheduledFlightJpaEntity, String> {
+    @Query("SELECT COALESCE(f.aircraftModel, 'UNKNOWN') AS modelName, COUNT(f.id) AS utilizationValue " +
             "FROM ScheduledFlightJpaEntity f " +
-            "WHERE f.status = 'COMPLETED' " +
-            "GROUP BY f.aircraftRegistrationNumber " +
-            "ORDER BY utilizationValue DESC")
-    List<ModelUtilizationProjection> findTopModelsByAssignments(Pageable pageable);
+            "WHERE f.status = aisafe.flights.domain.FlightStatus.COMPLETED " +
+            "GROUP BY COALESCE(f.aircraftModel, 'UNKNOWN') " +
+            "ORDER BY COUNT(f.id) DESC")
+    List<ModelUtilizationProjection> findModelUtilizationByAssignments();
 
-    @Query(value = "SELECT f.aircraft_registration_number AS modelName, " +
+    @Query(value = "SELECT COALESCE(f.aircraft_model, 'UNKNOWN') AS modelName, " +
             "SUM(TIMESTAMPDIFF(SECOND, f.departure_date_time, f.arrival_date_time)) / 3600.0 AS utilizationValue " +
             "FROM scheduled_flight f " +
             "WHERE f.status = 'COMPLETED' " +
-            "GROUP BY f.aircraft_registration_number " +
+            "GROUP BY COALESCE(f.aircraft_model, 'UNKNOWN') " +
             "ORDER BY utilizationValue DESC",
             nativeQuery = true)
-    List<ModelUtilizationProjection> findTopModelsByFlightHours(Pageable pageable);
+    List<ModelUtilizationProjection> findModelUtilizationByFlightHours();
 
     @Query(value = "SELECT COALESCE(SUM(TIMESTAMPDIFF(SECOND, f.departure_date_time, f.arrival_date_time)), 0) / 3600.0 " +
             "FROM scheduled_flight f " +
@@ -44,18 +39,12 @@ public interface SpringDataScheduledFlightRepository extends JpaRepository<Sched
 
     @Query("SELECT f FROM ScheduledFlightJpaEntity f " +
             "WHERE f.aircraftRegistrationNumber = :registration " +
-            "AND f.status = 'COMPLETED' " +
-            "AND f.departureDateTime >= :startDate " +
-            "AND f.departureDateTime <= :endDate")
-    List<ScheduledFlightJpaEntity> findFlightsForUtilization(@Param("registration") String registration, @Param("startDate") OffsetDateTime startDate, @Param("endDate") OffsetDateTime endDate);
-
-    @Query("SELECT f FROM ScheduledFlightJpaEntity f " +
-            "WHERE f.aircraftRegistrationNumber = :registration " +
             "ORDER BY f.departureDateTime ASC")
     List<ScheduledFlightJpaEntity> findByAircraftRegistration(@Param("registration") String registration);
 
     @Query("SELECT COUNT(f) > 0 FROM ScheduledFlightJpaEntity f " +
             "WHERE f.aircraftRegistrationNumber = :registration " +
+            "AND f.status <> aisafe.flights.domain.FlightStatus.CANCELED " +
             "AND f.departureDateTime < :arrivalDateTime " +
             "AND f.arrivalDateTime > :departureDateTime")
     boolean hasOverlappingFlights(@Param("registration") String registration,
@@ -69,12 +58,13 @@ public interface SpringDataScheduledFlightRepository extends JpaRepository<Sched
 
     boolean existsByAircraftRegistrationNumber(String registration);
 
-    @Query("SELECT 0L AS routeId, f.originCode AS originCode, f.destinationCode AS destinationCode, COUNT(f.id) AS flightCount " +
+    @Query("SELECT f.originCode AS originCode, f.destinationCode AS destinationCode, COUNT(f.id) AS flightCount " +
             "FROM ScheduledFlightJpaEntity f " +
-            "WHERE f.status = 'COMPLETED' " +
+            "WHERE f.status = aisafe.flights.domain.FlightStatus.COMPLETED " +
             "AND (cast(:startDate as timestamp) IS NULL OR f.departureDateTime >= :startDate) " +
             "AND (cast(:endDate as timestamp) IS NULL OR f.arrivalDateTime <= :endDate) " +
             "GROUP BY f.originCode, f.destinationCode " +
-            "ORDER BY flightCount DESC")
-    Page<RouteUtilizationProjection> findFlightUtilizationReports(@Param("startDate") OffsetDateTime startDate, @Param("endDate") OffsetDateTime endDate, Pageable pageable);
+            "ORDER BY COUNT(f.id) DESC")
+    List<RouteUtilizationProjection> findRouteUtilization(@Param("startDate") OffsetDateTime startDate,
+                                                          @Param("endDate") OffsetDateTime endDate);
 }

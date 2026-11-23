@@ -18,6 +18,7 @@ import org.springframework.hateoas.EntityModel;
 import org.springframework.hateoas.PagedModel;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,14 +29,14 @@ import java.time.OffsetDateTime;
 @RequestMapping("/api/flights/reports")
 @Tag(name = "Flight Reports", description = "Endpoints for generating flight reports")
 public class FlightUtilizationController {
-
     private final GenerateFlightUtilizationReportUseCase generateFlightUtilizationReport;
 
     public FlightUtilizationController(GenerateFlightUtilizationReportUseCase generateFlightUtilizationReport) {
         this.generateFlightUtilizationReport = generateFlightUtilizationReport;
     }
 
-    @Operation(summary = "Generate flight utilization report", description = "Aggregates completed flight data to provide insights into route popularity. (US229)")
+    @Operation(summary = "Generate flight utilization report", description = "Completed flights per route, "
+            + "merged across all replicas. (US229)")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Report generated successfully"),
             @ApiResponse(responseCode = "400", description = "Invalid date range"),
@@ -47,11 +48,11 @@ public class FlightUtilizationController {
             @Parameter(description = "Start date (inclusive)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime startDate,
             @Parameter(description = "End date (inclusive)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime endDate,
             @PageableDefault(size = 20) Pageable pageable,
-            PagedResourcesAssembler<FlightUtilizationResponse> assembler) {
-
+            PagedResourcesAssembler<FlightUtilizationResponse> assembler,
+            @Parameter(hidden = true) @RequestHeader(value = PeerForwarding.HEADER, required = false) String forwarded) {
         PaginatedResult<FlightUtilizationResponse> result = generateFlightUtilizationReport.execute(
-                startDate, endDate, pageable.getPageNumber(), pageable.getPageSize());
-        
+                startDate, endDate, pageable.getPageNumber(), pageable.getPageSize(), PeerForwarding.scopeOf(forwarded));
+
         Page<FlightUtilizationResponse> page = new PageImpl<>(result.data(), pageable, result.totalElements());
         return ResponseEntity.ok(assembler.toModel(page, EntityModel::of));
     }

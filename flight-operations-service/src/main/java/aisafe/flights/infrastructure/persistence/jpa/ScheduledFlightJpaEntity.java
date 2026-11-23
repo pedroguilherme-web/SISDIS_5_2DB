@@ -8,14 +8,16 @@ import lombok.Setter;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "scheduled_flight")
+@Table(name = "scheduled_flight", indexes = {
+        @Index(name = "idx_flight_aircraft", columnList = "aircraftRegistrationNumber"),
+        @Index(name = "idx_flight_route", columnList = "originCode, destinationCode")
+})
 @Getter
 @Setter
 public class ScheduledFlightJpaEntity {
-
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @Column(length = 36)
+    private String id;
 
     @Column(nullable = false)
     private OffsetDateTime departureDateTime;
@@ -27,29 +29,36 @@ public class ScheduledFlightJpaEntity {
     @Column(nullable = false)
     private FlightStatus status;
 
-    // Em vez de RouteJpaEntity, guardamos apenas os códigos (Strings)
     @Column(nullable = false)
     private String originCode;
 
     @Column(nullable = false)
     private String destinationCode;
 
-    // Em vez de AircraftJpaEntity, guardamos apenas a matrícula (String)
     @Column(nullable = false)
     private String aircraftRegistrationNumber;
+
+    @Column
+    private String aircraftModel;
+
+    @Column(nullable = false)
+    private long revision;
 
     @Version
     private Long version;
 
     public ScheduledFlightJpaEntity() {}
 
-    public ScheduledFlightJpaEntity(OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime,
-                                    FlightStatus status, String originCode, String destinationCode, String aircraftRegistrationNumber) {
+    public ScheduledFlightJpaEntity(String id, OffsetDateTime departureDateTime, OffsetDateTime arrivalDateTime,
+                                    FlightStatus status, String originCode, String destinationCode,
+                                    String aircraftRegistrationNumber, String aircraftModel) {
+        this.id = id;
         this.departureDateTime = departureDateTime;
         this.arrivalDateTime = arrivalDateTime;
         this.status = status;
         this.originCode = originCode;
         this.destinationCode = destinationCode;
         this.aircraftRegistrationNumber = aircraftRegistrationNumber;
+        this.aircraftModel = aircraftModel;
     }
 }

@@ -16,5 +16,8 @@ scripts:
     code: |-
       pm.test("Status is 201", () => pm.response.to.have.status(201));
       pm.test("Has departure time", () => pm.expect(pm.response.json().departureDateTime).to.exist);
+      if (pm.response.code === 201) {
+          pm.collectionVariables.set("flight_id", pm.response.json().id);
+      }
     language: text/javascript
 order: 1000

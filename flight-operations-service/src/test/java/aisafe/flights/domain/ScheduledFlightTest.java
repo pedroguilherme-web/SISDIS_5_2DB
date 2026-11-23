@@ -1,135 +1,131 @@
 package aisafe.flights.domain;
 
 import org.junit.jupiter.api.Test;
+
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class ScheduledFlightTest {
+    private static final OffsetDateTime DEPARTURE = OffsetDateTime.of(2026, 11, 1, 10, 0, 0, 0, ZoneOffset.UTC);
+    private static final OffsetDateTime ARRIVAL = DEPARTURE.plusHours(2).plusMinutes(30);
 
-    @Test
-    void shouldCreateFlightWhenAllInputsAreValid() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(3);
-
-        ScheduledFlight flight = new ScheduledFlight(
-                departure,
-                arrival,
-                FlightStatus.SCHEDULED,
-                "LIS",
-                "OPO",
-                "CS-TRP"
-        );
-
-        assertNull(flight.getId()); // O primeiro construtor não define ID
-        assertEquals("LIS", flight.getOriginCode());
-        assertEquals("OPO", flight.getDestinationCode());
-        assertEquals("CS-TRP", flight.getAircraftRegistrationNumber());
-        assertEquals(FlightStatus.SCHEDULED, flight.getStatus());
-        assertEquals(departure, flight.getDepartureDateTime());
-        assertEquals(arrival, flight.getArrivalDateTime());
-        assertEquals(3, flight.getDuration().toHours());
+    private static ScheduledFlight newFlight(FlightStatus status) {
+        return new ScheduledFlight(DEPARTURE, ARRIVAL, status, "LIS", "OPO", "CS-TKA", "A320");
     }
 
     @Test
-    void shouldCreateFlightWithIdWhenUsingSecondConstructor() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(2);
+    void shouldCreateFlightWithGeneratedUuidWhenAllInputsAreValid() {
+        ScheduledFlight flight = newFlight(FlightStatus.SCHEDULED);
 
-        ScheduledFlight flight = new ScheduledFlight(
-                10L,
-                departure,
-                arrival,
-                FlightStatus.COMPLETED,
-                "MAD",
-                "LIS",
-                "CS-TKA"
-        );
+        assertDoesNotThrow(() -> UUID.fromString(flight.getId()));
+        assertEquals(DEPARTURE, flight.getDepartureDateTime());
+        assertEquals(ARRIVAL, flight.getArrivalDateTime());
+        assertEquals(FlightStatus.SCHEDULED, flight.getStatus());
+        assertEquals("LIS", flight.getOriginCode());
+        assertEquals("OPO", flight.getDestinationCode());
+        assertEquals("CS-TKA", flight.getAircraftRegistrationNumber());
+        assertEquals("A320", flight.getAircraftModel());
+    }
 
-        assertEquals(10L, flight.getId());
+    @Test
+    void ensureEachNewFlightGetsADifferentIdSoReplicasNeverCollide() {
+        assertNotEquals(newFlight(FlightStatus.SCHEDULED).getId(), newFlight(FlightStatus.SCHEDULED).getId());
+    }
+
+    @Test
+    void shouldKeepTheGivenIdWhenRebuildingAnExistingFlight() {
+        ScheduledFlight flight = new ScheduledFlight("flight-1", DEPARTURE, ARRIVAL, FlightStatus.COMPLETED, "LIS", "OPO", "CS-TKA", null);
+
+        assertEquals("flight-1", flight.getId());
+        assertNull(flight.getAircraftModel());
+    }
+
+    @Test
+    void shouldRejectBlankId() {
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(" ", DEPARTURE, ARRIVAL, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TKA", null));
+    }
+
+    @Test
+    void shouldRejectDepartureAfterArrival() {
+        InvalidFlightScheduleException ex = assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(ARRIVAL, DEPARTURE, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TKA", null));
+        assertEquals("Departure must be before arrival.", ex.getMessage());
+    }
+
+    @Test
+    void shouldRejectDepartureEqualToArrival() {
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(DEPARTURE, DEPARTURE, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TKA", null));
+    }
+
+    @Test
+    void shouldRejectMissingDates() {
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(null, ARRIVAL, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TKA", null));
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(DEPARTURE, null, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TKA", null));
+    }
+
+    @Test
+    void shouldRejectMissingStatus() {
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(DEPARTURE, ARRIVAL, null, "LIS", "OPO", "CS-TKA", null));
+    }
+
+    @Test
+    void shouldRejectBlankAirportsAndRegistration() {
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(DEPARTURE, ARRIVAL, FlightStatus.SCHEDULED, " ", "OPO", "CS-TKA", null));
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(DEPARTURE, ARRIVAL, FlightStatus.SCHEDULED, "LIS", "", "CS-TKA", null));
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(DEPARTURE, ARRIVAL, FlightStatus.SCHEDULED, "LIS", "OPO", " ", null));
+    }
+
+    @Test
+    void shouldRejectSameOriginAndDestination() {
+        assertThrows(InvalidFlightScheduleException.class,
+                () -> new ScheduledFlight(DEPARTURE, ARRIVAL, FlightStatus.SCHEDULED, "LIS", "lis", "CS-TKA", null));
+    }
+
+    @Test
+    void shouldFollowTheLifecycleUntilCompleted() {
+        ScheduledFlight flight = newFlight(FlightStatus.SCHEDULED);
+
+        flight.changeStatus(FlightStatus.DELAYED);
+        flight.changeStatus(FlightStatus.IN_FLIGHT);
+        flight.changeStatus(FlightStatus.COMPLETED);
+
         assertEquals(FlightStatus.COMPLETED, flight.getStatus());
     }
 
     @Test
-    void shouldThrowExceptionWhenDepartureIsAfterArrival() {
-        OffsetDateTime arrival = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime departure = arrival.plusHours(2); // Invalido: Partida depois da chegada
+    void shouldRejectInvalidTransitionAndKeepCurrentStatus() {
+        ScheduledFlight flight = newFlight(FlightStatus.COMPLETED);
 
-        InvalidFlightScheduleException exception = assertThrows(InvalidFlightScheduleException.class, () -> {
-            new ScheduledFlight(departure, arrival, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TRP");
-        });
+        InvalidFlightStatusTransitionException ex = assertThrows(InvalidFlightStatusTransitionException.class,
+                () -> flight.changeStatus(FlightStatus.SCHEDULED));
 
-        assertEquals("Departure must be before arrival.", exception.getMessage());
+        assertEquals(FlightStatus.COMPLETED, flight.getStatus());
+        assertTrue(ex.getMessage().contains("COMPLETED to SCHEDULED"));
     }
 
     @Test
-    void shouldThrowExceptionWhenDepartureIsNull() {
-        OffsetDateTime arrival = OffsetDateTime.now(ZoneOffset.UTC);
-
-        assertThrows(InvalidFlightScheduleException.class, () -> {
-            new ScheduledFlight(null, arrival, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TRP");
-        });
+    void shouldComputeDurationInHours() {
+        assertEquals(2.5, newFlight(FlightStatus.SCHEDULED).getDurationHours(), 1e-9);
     }
 
     @Test
-    void shouldThrowExceptionWhenArrivalIsNull() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
+    void shouldDetectOverlappingIntervals() {
+        ScheduledFlight flight = newFlight(FlightStatus.SCHEDULED);
 
-        assertThrows(InvalidFlightScheduleException.class, () -> {
-            new ScheduledFlight(departure, null, FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TRP");
-        });
-    }
-
-    @Test
-    void shouldThrowExceptionWhenStatusIsNull() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(2);
-
-        assertThrows(InvalidFlightScheduleException.class, () -> {
-            new ScheduledFlight(departure, arrival, null, "LIS", "OPO", "CS-TRP");
-        });
-    }
-
-    @Test
-    void shouldThrowExceptionWhenOriginCodeIsBlank() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(2);
-
-        assertThrows(InvalidFlightScheduleException.class, () -> {
-            new ScheduledFlight(departure, arrival, FlightStatus.SCHEDULED, "   ", "OPO", "CS-TRP");
-        });
-    }
-
-    @Test
-    void shouldThrowExceptionWhenDestinationCodeIsBlank() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(2);
-
-        assertThrows(InvalidFlightScheduleException.class, () -> {
-            new ScheduledFlight(departure, arrival, FlightStatus.SCHEDULED, "LIS", "", "CS-TRP");
-        });
-    }
-
-    @Test
-    void shouldThrowExceptionWhenAircraftRegistrationIsBlank() {
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(2);
-
-        assertThrows(InvalidFlightScheduleException.class, () -> {
-            new ScheduledFlight(departure, arrival, FlightStatus.SCHEDULED, "LIS", "OPO", null);
-        });
-    }
-
-    @Test
-    void shouldReturnZeroDurationWhenDatesAreMissing() {
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        ScheduledFlight flight = new ScheduledFlight(
-                now, now.plusHours(1), FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TKA"
-        );
-
-        org.springframework.test.util.ReflectionTestUtils.setField(flight, "departureDateTime", null);
-
-        assertEquals(0, flight.getDuration().toMillis());
+        assertTrue(flight.overlaps(DEPARTURE.plusHours(1), ARRIVAL.plusHours(1)));
+        assertTrue(flight.overlaps(DEPARTURE.minusHours(1), DEPARTURE.plusMinutes(1)));
+        assertFalse(flight.overlaps(ARRIVAL, ARRIVAL.plusHours(1)), "back-to-back flights do not overlap");
+        assertFalse(flight.overlaps(DEPARTURE.minusHours(2), DEPARTURE));
     }
 }

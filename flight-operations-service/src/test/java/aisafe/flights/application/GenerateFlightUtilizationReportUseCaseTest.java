@@ -1,62 +1,77 @@
 package aisafe.flights.application;
 
 import aisafe.flights.application.dtos.FlightUtilizationResponse;
+import aisafe.flights.application.ports.FlightPeerClient;
 import aisafe.flights.domain.InvalidFlightDateRangeException;
 import aisafe.flights.domain.RouteUtilizationData;
 import aisafe.flights.domain.ScheduledFlightRepository;
 import aisafe.shared.domain.PaginatedResult;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class GenerateFlightUtilizationReportUseCaseTest {
+    @Mock private ScheduledFlightRepository repository;
+    @Mock private FlightPeerClient peers;
 
-    private ScheduledFlightRepository repository;
+    @InjectMocks
     private GenerateFlightUtilizationReportUseCase useCase;
-
-    @BeforeEach
-    void setUp() {
-        repository = Mockito.mock(ScheduledFlightRepository.class);
-        useCase = new GenerateFlightUtilizationReportUseCase(repository);
-    }
 
     @Test
     void shouldThrowExceptionWhenStartDateIsAfterEndDate() {
-        OffsetDateTime startDate = OffsetDateTime.now(ZoneOffset.UTC).plusDays(1);
-        OffsetDateTime endDate = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime start = OffsetDateTime.now();
 
-        assertThrows(InvalidFlightDateRangeException.class, () ->
-                useCase.execute(startDate, endDate, 0, 20)
-        );
+        assertThrows(InvalidFlightDateRangeException.class,
+                () -> useCase.execute(start, start.minusDays(1), 0, 20, QueryScope.CLUSTER));
+        verifyNoInteractions(repository, peers);
     }
 
     @Test
-    void shouldReturnPaginatedResultSuccessfully() {
-        OffsetDateTime startDate = OffsetDateTime.now(ZoneOffset.UTC).minusDays(5);
-        OffsetDateTime endDate = OffsetDateTime.now(ZoneOffset.UTC);
+    void shouldMergeRoutesAcrossReplicasSortAndPaginate() {
+        when(repository.findRouteUtilization(null, null)).thenReturn(List.of(
+                new RouteUtilizationData("LIS", "OPO", 3),
+                new RouteUtilizationData("OPO", "MAD", 1)));
+        when(peers.routeUtilization(null, null)).thenReturn(List.of(
+                new FlightUtilizationResponse("LIS", "OPO", 2),
+                new FlightUtilizationResponse("FAO", "LIS", 4)));
 
-        List<RouteUtilizationData> mockData = List.of(
-                new RouteUtilizationData(1L, "LIS", "OPO", 10L)
-        );
-        PaginatedResult<RouteUtilizationData> mockResult = new PaginatedResult<>(mockData, 1);
+        PaginatedResult<FlightUtilizationResponse> firstPage = useCase.execute(null, null, 0, 2, QueryScope.CLUSTER);
 
-        when(repository.getFlightUtilizationReport(eq(startDate), eq(endDate), eq(0), eq(20)))
-                .thenReturn(mockResult);
+        assertEquals(3, firstPage.totalElements());
+        assertEquals(List.of(
+                new FlightUtilizationResponse("LIS", "OPO", 5),
+                new FlightUtilizationResponse("FAO", "LIS", 4)), firstPage.data());
 
-        PaginatedResult<FlightUtilizationResponse> result = useCase.execute(startDate, endDate, 0, 20);
+        PaginatedResult<FlightUtilizationResponse> secondPage = useCase.execute(null, null, 1, 2, QueryScope.CLUSTER);
+        assertEquals(List.of(new FlightUtilizationResponse("OPO", "MAD", 1)), secondPage.data());
+    }
 
-        assertNotNull(result);
+    @Test
+    void shouldUseOnlyLocalDataWhenAskedByAPeerAndApplyDefaults() {
+        when(repository.findRouteUtilization(null, null)).thenReturn(List.of(new RouteUtilizationData("LIS", "OPO", 3)));
+
+        PaginatedResult<FlightUtilizationResponse> result = useCase.execute(null, null, null, null, QueryScope.LOCAL);
+
+        assertEquals(1, result.data().size());
+        verifyNoInteractions(peers);
+    }
+
+    @Test
+    void shouldReturnEmptyPageBeyondTheLastOne() {
+        when(repository.findRouteUtilization(null, null)).thenReturn(List.of(new RouteUtilizationData("LIS", "OPO", 3)));
+
+        PaginatedResult<FlightUtilizationResponse> result = useCase.execute(null, null, 5, 20, QueryScope.LOCAL);
+
+        assertTrue(result.data().isEmpty());
         assertEquals(1, result.totalElements());
-        assertEquals("LIS", result.data().get(0).origin());
-        assertEquals("OPO", result.data().get(0).destination());
-        assertEquals(10L, result.data().get(0).count());
     }
 }

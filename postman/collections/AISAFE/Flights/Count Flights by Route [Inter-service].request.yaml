@@ -1,0 +1,10 @@
+$kind: http-request
+url: "{{base_url}}/api/flights/count?origin={{route_origin}}&destination={{route_destination}}"
+method: GET
+scripts:
+  - type: afterResponse
+    code: |-
+      pm.test("Status is 200", () => pm.response.to.have.status(200));
+      pm.test("Is a number", () => pm.expect(Number(pm.response.text())).to.be.at.least(0));
+    language: text/javascript
+order: 4600

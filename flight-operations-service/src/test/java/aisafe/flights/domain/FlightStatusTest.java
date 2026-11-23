@@ -1,39 +1,65 @@
 package aisafe.flights.domain;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class FlightStatusTest {
-
     @Test
     void ensureAllEnumValuesExist() {
-        assertNotNull(FlightStatus.SCHEDULED);
-        assertNotNull(FlightStatus.DELAYED);
-        assertNotNull(FlightStatus.IN_FLIGHT);
-        assertNotNull(FlightStatus.COMPLETED);
-        assertNotNull(FlightStatus.CANCELED);
+        assertArrayEquals(
+                new FlightStatus[]{FlightStatus.SCHEDULED, FlightStatus.DELAYED, FlightStatus.IN_FLIGHT,
+                        FlightStatus.COMPLETED, FlightStatus.CANCELED},
+                FlightStatus.values());
+    }
+
+    @ParameterizedTest(name = "{0} -> {1} is allowed")
+    @CsvSource({
+            "SCHEDULED, DELAYED",
+            "SCHEDULED, IN_FLIGHT",
+            "SCHEDULED, CANCELED",
+            "DELAYED, IN_FLIGHT",
+            "DELAYED, CANCELED",
+            "IN_FLIGHT, COMPLETED"
+    })
+    void ensureLifecycleTransitionsAreAllowed(FlightStatus from, FlightStatus to) {
+        assertTrue(from.canTransitionTo(to));
+    }
+
+    @ParameterizedTest(name = "{0} -> {1} is rejected")
+    @CsvSource({
+            "SCHEDULED, SCHEDULED",
+            "SCHEDULED, COMPLETED",
+            "DELAYED, SCHEDULED",
+            "IN_FLIGHT, CANCELED",
+            "IN_FLIGHT, SCHEDULED",
+            "COMPLETED, SCHEDULED",
+            "COMPLETED, CANCELED",
+            "CANCELED, SCHEDULED",
+            "CANCELED, IN_FLIGHT"
+    })
+    void ensureOutOfOrderTransitionsAreRejected(FlightStatus from, FlightStatus to) {
+        assertFalse(from.canTransitionTo(to));
     }
 
     @Test
-    void ensureEnumValuesToStringAreCorrect() {
-        assertEquals("SCHEDULED", FlightStatus.SCHEDULED.toString());
-        assertEquals("DELAYED", FlightStatus.DELAYED.toString());
-        assertEquals("IN_FLIGHT", FlightStatus.IN_FLIGHT.toString());
-        assertEquals("COMPLETED", FlightStatus.COMPLETED.toString());
-        assertEquals("CANCELED", FlightStatus.CANCELED.toString());
+    void ensureOnlyCompletedAndCanceledAreTerminal() {
+        assertTrue(FlightStatus.COMPLETED.isTerminal());
+        assertTrue(FlightStatus.CANCELED.isTerminal());
+        assertFalse(FlightStatus.SCHEDULED.isTerminal());
+        assertFalse(FlightStatus.DELAYED.isTerminal());
+        assertFalse(FlightStatus.IN_FLIGHT.isTerminal());
     }
 
     @Test
-    void ensureValueOfReturnsCorrectEnum() {
-        assertEquals(FlightStatus.SCHEDULED, FlightStatus.valueOf("SCHEDULED"));
-        assertEquals(FlightStatus.DELAYED, FlightStatus.valueOf("DELAYED"));
-        assertEquals(FlightStatus.IN_FLIGHT, FlightStatus.valueOf("IN_FLIGHT"));
-        assertEquals(FlightStatus.COMPLETED, FlightStatus.valueOf("COMPLETED"));
-        assertEquals(FlightStatus.CANCELED, FlightStatus.valueOf("CANCELED"));
+    void ensureTransitionToNullIsRejected() {
+        assertFalse(FlightStatus.SCHEDULED.canTransitionTo(null));
     }
 
     @Test
     void ensureValueOfThrowsExceptionForInvalidValue() {
-        assertThrows(IllegalArgumentException.class, () -> FlightStatus.valueOf("NON_EXISTENT"));
+        assertThrows(IllegalArgumentException.class, () -> FlightStatus.valueOf("LANDED"));
     }
 }

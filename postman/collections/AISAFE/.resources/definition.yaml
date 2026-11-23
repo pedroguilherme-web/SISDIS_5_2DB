@@ -19,6 +19,7 @@ variables:
   aircraft_model_name: Boeing 737 MAX2
   aircraft_version: "0"
   aircraft_registration: CS-TKA
+  flight_id: ""
   airport_iata: OPO
   route_origin: OPO
   route_destination: LIS

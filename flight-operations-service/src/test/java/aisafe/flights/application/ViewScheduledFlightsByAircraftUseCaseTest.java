@@ -1,70 +1,84 @@
 package aisafe.flights.application;
 
+import aisafe.flights.application.dtos.AircraftDTO;
 import aisafe.flights.application.dtos.FlightResponse;
+import aisafe.flights.application.ports.AircraftServiceClient;
+import aisafe.flights.application.ports.FlightPeerClient;
 import aisafe.flights.domain.FlightStatus;
 import aisafe.flights.domain.ScheduledFlight;
 import aisafe.flights.domain.ScheduledFlightRepository;
-import org.junit.jupiter.api.BeforeEach;
+import aisafe.shared.domain.ResourceNotFoundException;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.http.HttpMethod;
-import org.springframework.http.ResponseEntity;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class ViewScheduledFlightsByAircraftUseCaseTest {
+    private static final OffsetDateTime T0 = OffsetDateTime.of(2026, 12, 1, 8, 0, 0, 0, ZoneOffset.UTC);
 
-    private ScheduledFlightRepository repository;
-    private RestTemplate restTemplate;
+    @Mock private ScheduledFlightRepository repository;
+    @Mock private AircraftServiceClient aircraftService;
+    @Mock private FlightPeerClient peers;
+
+    @InjectMocks
     private ViewScheduledFlightsByAircraftUseCase useCase;
 
-    @BeforeEach
-    void setUp() {
-        repository = Mockito.mock(ScheduledFlightRepository.class);
-        restTemplate = Mockito.mock(RestTemplate.class);
-        useCase = new ViewScheduledFlightsByAircraftUseCase(repository, restTemplate);
+    private static ScheduledFlight localFlight(String id, OffsetDateTime departure) {
+        return new ScheduledFlight(id, departure, departure.plusHours(1), FlightStatus.SCHEDULED, "LIS", "OPO", "CS-TRP", "A320");
+    }
 
-        ReflectionTestUtils.setField(useCase, "aircraftServiceUrl", "http://localhost:8081");
+    private void givenAircraftExists() {
+        when(aircraftService.findByRegistration("CS-TRP"))
+                .thenReturn(Optional.of(new AircraftDTO("CS-TRP", "A320", "AVAILABLE", 150, 3000.0)));
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void shouldThrowExceptionWhenAircraftNotFound() {
-        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), any(Class.class)))
-                .thenThrow(HttpClientErrorException.NotFound.class);
+    void shouldMergeLocalAndPeerFlightsSortedByDeparture() {
+        givenAircraftExists();
+        when(repository.findByAircraftRegistration("CS-TRP")).thenReturn(List.of(localFlight("local-2", T0.plusDays(2))));
+        when(peers.findFlightsByAircraft("CS-TRP"))
+                .thenReturn(List.of(FlightResponse.from(localFlight("peer-1", T0))));
 
-        assertThrows(RuntimeException.class, () -> useCase.execute("UNKNOWN"));
+        List<FlightResponse> flights = useCase.execute(" cs-trp ", QueryScope.CLUSTER);
+
+        assertEquals(List.of("peer-1", "local-2"), flights.stream().map(FlightResponse::id).toList());
     }
 
     @Test
-    @SuppressWarnings("unchecked")
-    void shouldReturnFlightsSuccessfully() {
-        String aircraftId = "CS-TKA";
-        OffsetDateTime departure = OffsetDateTime.now(ZoneOffset.UTC);
-        OffsetDateTime arrival = departure.plusHours(2);
+    void shouldReturnNotFoundWhenAircraftDoesNotExist() {
+        when(aircraftService.findByRegistration("CS-XXX")).thenReturn(Optional.empty());
 
-        ScheduledFlight mockFlight = new ScheduledFlight(1L, departure, arrival, FlightStatus.SCHEDULED, "LIS", "OPO", aircraftId);
+        assertThrows(ResourceNotFoundException.class, () -> useCase.execute("CS-XXX", QueryScope.CLUSTER));
+        verifyNoInteractions(peers);
+    }
 
-        when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), any(), any(Class.class)))
-                .thenReturn(ResponseEntity.ok().build());
-        when(repository.findByAircraftRegistration(aircraftId))
-                .thenReturn(List.of(mockFlight));
+    @Test
+    void shouldStillListFlightsWhenAircraftServiceIsDown() {
+        when(aircraftService.findByRegistration("CS-TRP"))
+                .thenThrow(new ExternalServiceUnavailableException("Aircraft & Maintenance service"));
+        when(repository.findByAircraftRegistration("CS-TRP")).thenReturn(List.of(localFlight("local-1", T0)));
+        when(peers.findFlightsByAircraft("CS-TRP")).thenReturn(List.of());
 
-        List<FlightResponse> result = useCase.execute(aircraftId);
+        assertEquals(1, useCase.execute("CS-TRP", QueryScope.CLUSTER).size());
+    }
 
-        assertFalse(result.isEmpty());
-        assertEquals(1, result.size());
-        assertEquals(aircraftId, result.getFirst().aircraftId());
+    @Test
+    void shouldAnswerOnlyWithLocalDataWhenRequestCameFromAPeer() {
+        when(repository.findByAircraftRegistration("CS-TRP")).thenReturn(List.of(localFlight("local-1", T0)));
+
+        List<FlightResponse> flights = useCase.execute("CS-TRP", QueryScope.LOCAL);
+
+        assertEquals(1, flights.size());
+        verifyNoInteractions(peers, aircraftService);
     }
 }
